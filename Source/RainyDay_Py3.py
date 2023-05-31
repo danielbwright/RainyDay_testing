@@ -1258,12 +1258,13 @@ if CreateCatalog:
     caty=caty[sind]    
     catrain=catrain[sind,:]  
     catmax=catmax[sind]/mnorm*rainprop.timeres/60. 
-        
+# The loop will be added here #      
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
     
     # WRITE CATALOG
     print("writing storm catalog...")
+# This part need to be deleted
     RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)
         
 #%%
