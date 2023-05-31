@@ -1251,6 +1251,7 @@ if CreateCatalog:
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
 #%%
+# This part saves each storm as single file #
     sind=np.argsort(catmax)
     cattime=cattime[sind,:]
     catx=catx[sind]
