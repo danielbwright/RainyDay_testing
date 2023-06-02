@@ -25,6 +25,7 @@
 #==============================================================================
 #%%
 import os
+import re
 import sys
 import numpy as np
 import scipy as sp
@@ -1251,21 +1252,54 @@ if CreateCatalog:
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
 #%%
-# This part saves each storm as single file #
     sind=np.argsort(catmax)
     cattime=cattime[sind,:]
     catx=catx[sind]
     caty=caty[sind]    
     catrain=catrain[sind,:]  
-    catmax=catmax[sind]/mnorm*rainprop.timeres/60. 
-# The loop will be added here #      
+    catmax=catmax[sind]/mnorm*rainprop.timeres/60.
+    # This part saves each storm as single file #
+    for i in range(nstorms):
+        start_time = cattime[i,0]
+        end_time   = cattime[i,-1]
+        current_datetime = start_time
+        dataset_date = None
+        catrain = np.zeros((int(catduration*60/rainprop.timeres),rainprop.subdimensions[0]\
+                            ,rainprop.subdimensions[1]),dtype='float32')
+        k  = 0 
+        infile = None
+        while current_datetime <= end_time:
+            current_date = np.datetime_as_string(current_datetime, unit='D')
+            if current_date != dataset_date:
+                datset_date = current_date
+                # This loop searches for the right file to open from the filelist
+                for file in flist:
+                    match = re.search(r'\d{4}(?:\d{2})?(?:\d{2}|\-\d{2}\-\d{2}|\/\d{2}/\d{2})',\
+                                      os.path.basename(file))
+                    if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
+                        infile = file
+                        break
+                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(infile,inbounds=rainprop.subind,\
+                                                            lassiterfile=islassiter)
+            cind = np.where(stm_time == current_datetime)[0][0]
+            catrain[k,:] = stm_rain[cind,:]
+            current_datetime += rainprop.timeres * 60
+            k += 1
+        storm_name = "Storm" + str(i+1) +".nc"
+        print("Writing Storm "+ str(i+1) + "out of " + str(nstorms) )
+        RainyDay.writecatalog_ash(scenarioname,catrain,\
+                                  catmax[i],\
+                                      catx[i],caty[i],\
+                                          cattime[i,:],latrange,lonrange,\
+                                              storm_name,catmask,parameterfile_json,domainmask,\
+                                                  timeresolution=rainprop.timeres)      
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
     
     # WRITE CATALOG
     print("writing storm catalog...")
 # This part need to be deleted
-    RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)
+    #RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)
         
 #%%
 #################################################################################
