@@ -100,5 +100,5 @@ for i in range(nstorms):
                                               timeresolution=rainprop.timeres)
 #%%
 stprm1 = xr.open_dataset("/Volumes/TheCordex/Madison_Data/Storm1.nc")
-stprm2 = xr.open_dataset("/Volumes/TheCordex/Madison_Data/Storm2.nc")
-stprm3 = xr.open_dataset("/Volumes/TheCordex/Madison_Data/Storm3.nc")
+stprm2 = xr.open_dataset("/Volumes/TheCordex/Madison_Data/Storm199.nc")
+stprm3 = xr.open_dataset("/Volumes/TheCordex/Madison_Data/Storm200.nc")
