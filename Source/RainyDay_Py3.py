@@ -36,7 +36,6 @@ import time
 from copy import deepcopy
 from scipy import ndimage, stats
 import pandas as pd
-
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
@@ -53,10 +52,10 @@ numbacheck=True
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
+#%%
 # import RainyDay functions
 import RainyDay_functions as RainyDay
-
+#%%
 from numba.types import int32
 
 import warnings
@@ -1175,7 +1174,7 @@ if CreateCatalog:
     
     catmax=np.zeros((nstorms),dtype='float32')
 
-    catrain=np.zeros((nstorms,int(catduration*60/rainprop.timeres),rainprop.subdimensions[0],rainprop.subdimensions[1]),dtype='float32')
+    # catrain=np.zeros((nstorms,int(catduration*60/rainprop.timeres),rainprop.subdimensions[0],rainprop.subdimensions[1]),dtype='float32')
     cattime=np.empty((nstorms,int(catduration*60/rainprop.timeres)),dtype='datetime64[m]')
     cattime[:]=np.datetime64(datetime(1900,1,1,0,0,0))
     catloc=np.empty((nstorms),dtype='float32')
@@ -1232,7 +1231,7 @@ if CreateCatalog:
                             cattime[checkind,:]=subtime
                             catx[checkind]=xcat
                             caty[checkind]=ycat
-                            catrain[checkind,:]=rainarray
+                            # catrain[checkind,:]=rainarray
                             
                         
                     else:
@@ -1241,7 +1240,7 @@ if CreateCatalog:
                         cattime[minind,:]=subtime
                         catx[minind]     =xcat
                         caty[minind]     =ycat
-                        catrain[minind,:]=rainarray
+                        # catrain[minind,:]=rainarray
                         #try:
                         #    storm_num = checkind[0][0] + 1
                         #    storm_name = 'storm' + str(storm_num) + '.nc'
@@ -1256,7 +1255,7 @@ if CreateCatalog:
     cattime=cattime[sind,:]
     catx=catx[sind]
     caty=caty[sind]    
-    catrain=catrain[sind,:]  
+    # catrain=catrain[sind,:]  
     catmax=catmax[sind]/mnorm*rainprop.timeres/60.
     # This part saves each storm as single file #
     for i in range(nstorms):
@@ -1267,26 +1266,29 @@ if CreateCatalog:
         catrain = np.zeros((int(catduration*60/rainprop.timeres),rainprop.subdimensions[0]\
                             ,rainprop.subdimensions[1]),dtype='float32')
         k  = 0 
-        infile = None
+        stm_file = None
+        count = 0
         while current_datetime <= end_time:
-            current_date = np.datetime_as_string(current_datetime, unit='D')
+            current_date = np.datetime_as_string(current_datetime - rainprop.timeres, unit='D')
             if current_date != dataset_date:
-                datset_date = current_date
+                count += 1
+                dataset_date = current_date
                 # This loop searches for the right file to open from the filelist
                 for file in flist:
                     match = re.search(r'\d{4}(?:\d{2})?(?:\d{2}|\-\d{2}\-\d{2}|\/\d{2}/\d{2})',\
                                       os.path.basename(file))
                     if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
-                        infile = file
+                        stm_file = file
                         break
-                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(infile,inbounds=rainprop.subind,\
+                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,inbounds=rainprop.subind,\
                                                             lassiterfile=islassiter)
             cind = np.where(stm_time == current_datetime)[0][0]
             catrain[k,:] = stm_rain[cind,:]
-            current_datetime += rainprop.timeres * 60
+            current_datetime += rainprop.timeres 
             k += 1
         storm_name = "Storm" + str(i+1) +".nc"
-        print("Writing Storm "+ str(i+1) + "out of " + str(nstorms) )
+        print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
+        print(count)
         RainyDay.writecatalog_ash(scenarioname,catrain,\
                                   catmax[i],\
                                       catx[i],caty[i],\
@@ -1339,7 +1341,7 @@ elif exclude.lower()!="none" and CreateCatalog:
     
 includestorms[np.isclose(catmax,0.)]=False
         
-catrain=catrain[includestorms,:]
+catrain=catrain[includestorms,:]   ##Error here because of obvoius reason.
 catmax=catmax[includestorms]
 catx=catx[includestorms]
 caty=caty[includestorms]

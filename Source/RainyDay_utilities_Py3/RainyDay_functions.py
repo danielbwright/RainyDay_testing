@@ -1219,7 +1219,7 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 def readnetcdf(rfile,inbounds=False,lassiterfile=False):
     infile=xr.open_dataset(rfile)
     
-    search_string = 'rainrate'
+    search_string = 'rainrate'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
     index = [x.lower() for x in variables].index(search_string.lower())
     if lassiterfile==False:
@@ -1372,6 +1372,7 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
         timeresolution=timeresolution
     else:
         timeresolution = "None"
+    catrain[np.isnan(catrain)] = -9999.
 
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay Storm Catalog for scenario ' + scenarioname + '. See description for JSON file contents.'
