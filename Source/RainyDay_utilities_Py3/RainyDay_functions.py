@@ -1353,10 +1353,10 @@ def readcatalog_LEGACY(rfile):
 
 #RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)   
 def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrange, lonrange, catalogname, gridmask,
-                 parameterfile_json, dmask, timeresolution=False):
+                 parameterfile, dmask, timeresolution=False):
 
-    with open(parameterfile_json,'r') as f:
-        cardinfo = json.loads(f.read())
+    with open(parameterfile,'r') as f:
+        params = json.loads(f.read())
     # Variable Attributes (time since 1970-01-01 00:00:00.0 in numpys)
     latitudes_units,longitudes_units = 'degrees_north', 'degrees_east'
     rainrate_units,basinrainfall_units = 'mm hr^-1', 'mm'
@@ -1388,7 +1388,7 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
                   latitude =  (("latitude"), latrange[::-1], {'units': latitudes_units, 'long_name': latitudes_name}))
 
 
-    attrs  = dict(history =history, source =  source, missing = missing, description = str(cardinfo),  calendar = times_calendar)
+    attrs  = dict(history =history, source =  source, missing = missing, description = str(params),  calendar = times_calendar)
     catalog = xr.Dataset(data_vars = data_vars, coords = coords, attrs = attrs)
     catalog.time.encoding['units'] = "minutes since 1970-01-01 00:00:00"
 
