@@ -26,7 +26,8 @@ import sys
 import numpy as np
 import scipy as sp
 import glob
-import math     
+import math
+import re     
 from datetime import datetime, date, time, timedelta      
 import time
 from copy import deepcopy
@@ -1592,66 +1593,37 @@ def subfinder(mylist, pattern):
 #==============================================================================
 # CREATE FILE LIST:- This will create file list and will remove the years(EXCLUDEYEARS) from the input given in .sst file. Also, it will return the number of years included in the dataset.
 #==============================================================================
-def createfilelist(inpath,includeyears,excludemonths):
-    flist=glob.glob(inpath)
-    flist=np.array(flist)
-        
-    if len(flist)==0:
-        sys.exit("couldn't find any input rainfall files!")
+
+def try_parsing_date(text):
+    for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y', '%Y%m%d'):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+    raise ValueError('no valid date format found')  ### This fucntion is not tested yet
+def createfilelist(inpath, includeyears, excludemonths):
+    flist = sorted(glob.glob(inpath))
+    new_list = [] ; years = set()
+    for file in flist:
+        base = os.path.basename(file)
+        match = re.search(r'\d{4}(?:\d{2})?(?:\d{2}|\-\d{2}\-\d{2}|\/\d{2}/\d{2})', base)
+        ### The block below is added for file named in formats YYYYMMDD, YYYY-MM-DD or YYYY/MM/DD and it will
+        ### errors after year 1299 in format DDMMYYYY or MMDDYYYY
+        try:
+            file_date = datetime.strptime(match.group().replace("-","").replace("/",""),'%Y%m%d')
+        except:
+            sys.exit("You need to give file names in YYYYMMDD, YYYY-MM-DD or YYYY/MM/DD formats")
+        file_year = file_date.year; file_month = file_date.month
+        if includeyears == False:
+            if file_month not in excludemonths:
+                new_list.append(file); years.add(file_year)
+        else:
+            if file_year in includeyears and file_month not in excludemonths:
+                new_list.append(file); years.add(file_year)
+    nyears = len(years) ## can be made more efficient
+    return new_list, nyears
     
-    numbers=[]
-    for c in flist[0]:
-        numbers.append(c.isdigit())
-    if sum(numbers)<8:
-        sys.exit("There is something wrong with your input rainfall file names, the date must appear in the file name in the YYYYMMDD format.")
-    datechecklist=[True,True,True,True,True,True,True,True]              
-
-    fstrind=subfinder(numbers,datechecklist)
-    if len(fstrind)<1:
-        sys.exit("We could not parse a file date in YYYYMMDD format from the filenames.")
-    elif len(fstrind)>1:
-        print("Warning: the file date in the YYYYMMDD format was ambiguous.")
-        fstrind=fstrind[-1]
-    else:
-        fstrind=fstrind[0]
-
-
-    # THIS IS UGLY BUT YOLO
-    ### Ashar: Takes out the month year and date of nc file. Also, checks the number of years of data.
-    ctr=0
-    fmonth=np.zeros(flist.shape,dtype="int")
-    fyear=np.zeros(flist.shape,dtype="int")
-    ftime=np.zeros(flist.shape,dtype="int")
-    finclude=np.ones(flist.shape,dtype="bool")
-    for f in flist:
-        ftime[ctr]=f[fstrind:(fstrind+8)]
-        fmonth[ctr]=np.int(f[fstrind:(fstrind+8)][4:6])
-        fyear[ctr]=np.int(f[fstrind:(fstrind+8)][0:4])
-        ctr=ctr+1
-    if isinstance(includeyears, (bool))==False:  
-        allyears=np.arange(min(fyear),max(fyear)+1)
-        excludeyears=set(allyears)^set(includeyears)
-        for j in excludeyears:
-            finclude[fyear==j]=False
-        nyears=len(allyears)-len(excludeyears)
-    else:
-        nyears=len(np.unique(fyear))
     
-    #if nyears<1:
-    #    sys.exit("Somehow we didn't find any rainfall files. Check your INCLUDEYEARS field!")
-    
-    if isinstance(excludemonths, (bool))==False:
-        for j in excludemonths:
-            finclude[fmonth==j]=False
-        
-    flist=flist[finclude==True]
-    ftime=ftime[finclude==True]
-        
-    fsort=np.array(sorted(enumerate(ftime), key=lambda x: x[1]))
-    sortind=fsort[:,0]
-    flist=flist[sortind]     #### Ashar: May not be needed (not sure)
-    return flist,nyears
-
 
 #==============================================================================
 # Get things set up
