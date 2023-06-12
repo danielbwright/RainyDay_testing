@@ -1217,9 +1217,10 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 #     infile.close()
 #     return outrain,outtime,outlatitude,outlongitude
 
+
+
 def readnetcdf(rfile,inbounds=False,lassiterfile=False):
     infile=xr.open_dataset(rfile)
-    
     search_string = 'rainrate'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
     index = [x.lower() for x in variables].index(search_string.lower())
@@ -1230,57 +1231,49 @@ def readnetcdf(rfile,inbounds=False,lassiterfile=False):
         else:
             oldfile=False
         if np.any(inbounds!=False):
+            latmin,latmax,longmin,longmax = inbounds[3],inbounds[2],inbounds[0],inbounds[1]
             if oldfile:
-                outrain=np.array(infile.variables[variables[index]][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-                outlatitude=np.array(infile.variables['latitude'][inbounds[3]:inbounds[2]+1])
+                outrain=infile[variables[index]].isel(latitude =slice(latmin,latmax+1),\
+                                                      longitude=slice(longmin,longmax+1))
+                                                                
+                                                                
+                outlatitude=outrain.latitude
             else:
-                outrain=np.array(infile.variables['precrate'][:,::-1,:][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-                outlatitude=np.array(infile.variables['latitude'][::-1][inbounds[3]:inbounds[2]+1])
-            outlongitude=np.array(infile.variables['longitude'][inbounds[0]:inbounds[1]+1])         
+                outrain=infile['precrate'].isel(latitude=slice(None,None,-1))\
+                                                .isel(latitude =slice(latmin,latmax+1),\
+                                                longitude=slice(longmin,longmax+1))
+                outlatitude=outrain.latitude
+            outlongitude=outrain.longitude        
         else:
             if oldfile:
-                outrain=np.array(infile.variables[variables[index]])
-                outlatitude=np.array(infile.variables['latitude'])
+                outrain=infile[variables[index]]
+                outlatitude=outrain.latitude
             else:
-                outrain=np.array(infile.variables['precrate'][:,::-1,:])
-                outlatitude=np.array(infile.variables['latitude'][::-1])
-            outlongitude=np.array(infile.variables['longitude'][:])
-        outtime=np.array(infile.variables['time'][:],dtype='datetime64[m]')
+                outrain=infile['precrate'].isel(latitude=slice(None,None,-1))
+                outlatitude=outrain.latitude
+            outlongitude=outrain.longitude
+        outtime=np.array(infile['time'],dtype='datetime64[m]')
     else:       # lassiter time!
         print("Lassiter  or FitzGerald style!")
         #for subhourly lassiter files:
         if np.any(inbounds!=False):
-            outrain=np.array(infile.variables['rainrate'][:,::-1,:][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-            outlatitude=np.array(infile.variables['latitude'][inbounds[3]:inbounds[2]+1])[::-1]
-            outlongitude=np.array(infile.variables['longitude'][:])-360. 
+            outrain=infile[variables[index]].isel(latitude=slice(None,None,-1)).\
+                                                  isel(latitude =slice(latmin,latmax+1),\
+                                                  longitude=slice(longmin,longmax+1))
+            outlatitude=outrain.latitude
+            outlongitude=outrain.longitude-360. 
         else:
-            outrain=np.array(infile.variables['rainrate'][:])[:,::-1,:]
-            outlatitude=np.array(infile.variables['latitude'][:])[::-1]
-            outlongitude=np.array(infile.variables['longitude'][:])-360. 
+            outrain=infile[variables[index]].isel(latitude=slice(None,None,-1))
+            outlatitude=outrain.latitude
+            outlongitude=outrain.longitude-360. 
     
-        # for hourly lassiter files:
-        #tempdate=rfile.strip('.nc').split('/')[-1]
-        #startdate=np.datetime64(tempdate[0:4]+'-'+tempdate[4:6]+'-'+tempdate[6:8]+'T00:00')
-        #outtime=startdate+np.array(infile.variables['time'][:],dtype='timedelta64[s]')
-        
-        # for hourly FitzGerald files:
         tempdate=rfile.strip('.nc').split('/')[-1][-8:]
         startdate=np.datetime64(tempdate[0:4]+'-'+tempdate[4:6]+'-'+tempdate[6:8]+'T00:00')
         outtime=startdate+np.array(infile.variables['time'][:],dtype='timedelta64[m]')
-        
-        #if np.any(inbounds!=False):
-         #   outrain=np.array(infile.variables['precrate'][::-1][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-        #    outlatitude=np.array(infile.variables['latitude'][::-1][inbounds[3]:inbounds[2]+1])
-        #    outlongitude=np.array(infile.variables['longitude'][inbounds[3]:inbounds[2]+1])
-        #else:
-         #   outrain=np.array(infile.variables['precrate'][:,::-1,:])
-        #    outlatitude=np.array(infile.variables['latitude'][::-1])
-        #    outlongitude=np.array(infile.variables['longitude'][:])
             
     infile.close()
-    return outrain,outtime,outlatitude,outlongitude
-    
-    
+    return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
+  
 #==============================================================================
 # READ RAINFALL FILE FROM NETCDF
 #==============================================================================
