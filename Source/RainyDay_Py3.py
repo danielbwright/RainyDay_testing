@@ -524,27 +524,17 @@ try:
     if type(exclude) == str:
         if exclude.lower() == 'none':
 
-            excludemonths=False
+            excludemonths= []
     else:
         excludemonths=exclude
 except Exception:
-    excludemonths=False
+    excludemonths=[]
 #
 # # INCLUDE ONLY CERTAIN YEARS
 try:
     includeyr=cardinfo["INCLUDEYEARS"]
     if includeyr.lower()!="all":
-        if ',' in includeyr:
-            includeyr=includeyr.split(',')
-            includeyears=np.empty(len(includeyr),dtype="int32")
-            for i in np.arange(0,len(includeyr)):
-                includeyears[i]=np.int(includeyr[i])
-        elif '-' in includeyr:
-            includeyr=includeyr.split('-')
-            includeyears=np.arange(np.int(includeyr[0]),np.int(includeyr[1])+1,dtype='int32')
-        else:
-            includeyears=np.empty((1),dtype="int32")
-            includeyears[0]=np.int(includeyr)
+        includeyear = includeyr
     else:
         includeyears=False
 except Exception:
@@ -560,7 +550,6 @@ except Exception:
 if CreateCatalog:
     try:
         inpath=cardinfo["RAINPATH"]
-        ds = xr.open_mfdataset(inpath, parallel =True)
     except ImportError:
         sys.exit("You didn't specify 'RAINPATH', which is a required field for creating a new storm catalog!")
 
