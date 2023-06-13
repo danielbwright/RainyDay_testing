@@ -1224,53 +1224,17 @@ def readnetcdf(rfile,inbounds=False,lassiterfile=False):
     search_string = 'rainrate'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
     index = [x.lower() for x in variables].index(search_string.lower())
-    if lassiterfile==False:
-        if search_string.lower() in [x.lower() for x in variables]:
-            print("Reading an older-style NetCDF file")
-            oldfile=True
-        else:
-            oldfile=False
-        if np.any(inbounds!=False):
-            latmin,latmax,longmin,longmax = inbounds[3],inbounds[2],inbounds[0],inbounds[1]
-            if oldfile:
-                outrain=infile[variables[index]].isel(latitude =slice(latmin,latmax+1),\
-                                                      longitude=slice(longmin,longmax+1))
-                                                                
-                                                                
-                outlatitude=outrain.latitude
-            else:
-                outrain=infile['precrate'].isel(latitude=slice(None,None,-1))\
-                                                .isel(latitude =slice(latmin,latmax+1),\
-                                                longitude=slice(longmin,longmax+1))
-                outlatitude=outrain.latitude
-            outlongitude=outrain.longitude        
-        else:
-            if oldfile:
-                outrain=infile[variables[index]]
-                outlatitude=outrain.latitude
-            else:
-                outrain=infile['precrate'].isel(latitude=slice(None,None,-1))
-                outlatitude=outrain.latitude
-            outlongitude=outrain.longitude
-        outtime=np.array(infile['time'],dtype='datetime64[m]')
-    else:       # lassiter time!
-        print("Lassiter  or FitzGerald style!")
-        #for subhourly lassiter files:
-        if np.any(inbounds!=False):
-            outrain=infile[variables[index]].isel(latitude=slice(None,None,-1)).\
-                                                  isel(latitude =slice(latmin,latmax+1),\
+    if np.any(inbounds!=False):
+        latmin,latmax,longmin,longmax = inbounds[3],inbounds[2],inbounds[0],inbounds[1]
+        outrain=infile[variables[index]].isel(latitude =slice(latmin,latmax+1),\
                                                   longitude=slice(longmin,longmax+1))
-            outlatitude=outrain.latitude
-            outlongitude=outrain.longitude-360. 
-        else:
-            outrain=infile[variables[index]].isel(latitude=slice(None,None,-1))
-            outlatitude=outrain.latitude
-            outlongitude=outrain.longitude-360. 
-    
-        tempdate=rfile.strip('.nc').split('/')[-1][-8:]
-        startdate=np.datetime64(tempdate[0:4]+'-'+tempdate[4:6]+'-'+tempdate[6:8]+'T00:00')
-        outtime=startdate+np.array(infile.variables['time'][:],dtype='timedelta64[m]')
-            
+        outlatitude=outrain['latitude']
+        outlongitude=outrain['longitude']        
+    else:
+        outrain=infile[variables[index]]
+        outlatitude=outrain['latitude']
+        outlongitude=outrain['longitude'] 
+    outtime=np.array(infile['time'],dtype='datetime64[m]')
     infile.close()
     return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
   

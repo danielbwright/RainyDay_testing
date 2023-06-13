@@ -1263,7 +1263,6 @@ if CreateCatalog:
         while current_datetime <= end_time:
             current_date = np.datetime_as_string(current_datetime - rainprop.timeres, unit='D')
             if current_date != dataset_date:
-                count += 1
                 dataset_date = current_date
                 # This loop searches for the right file to open from the filelist
                 for file in flist:
@@ -1280,7 +1279,6 @@ if CreateCatalog:
             k += 1
         storm_name = "Storm" + str(i+1) +".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
-        print(count)
         RainyDay.writecatalog_ash(scenarioname,catrain,\
                                   catmax[i],\
                                       catx[i],caty[i],\
