@@ -31,6 +31,7 @@ import numpy as np
 import scipy as sp
 import shapefile
 import math 
+import json
 from datetime import datetime, date, time, timedelta      
 import time
 from copy import deepcopy
@@ -52,10 +53,9 @@ numbacheck=True
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-#%%
 # import RainyDay functions
 import RainyDay_functions as RainyDay
-#%%
+
 from numba.types import int32
 
 import warnings
@@ -129,55 +129,63 @@ print('''Welcome to RainyDay, a framework for coupling remote sensing precipitat
 start = time.time()
 parameterfile='ttt'
 try:
-    parameterfile=np.str(sys.argv[1])
-    #parameterfile='/Users/daniel/Google_Drive/Presentations/MyPresentations/WisconsinRainfallProject/Wisconsin_24hrIDF_Madison.sst'
-except:
-    sys.exit("You didn't specify an input ('.sst') file!")
-
-if os.path.isfile(parameterfile)==False:
-    sys.exit("You either didn't specify a parameter file, or it doesn't exist.")
-else:
+    parameterfile=sys.argv[1]
     print("reading in the parameter file...")
-    #### Cardinfo takes in the  '.sst' file parameters
-    cardinfo=np.loadtxt(parameterfile, comments="#",dtype="str", unpack=False)
-parameterfile_json = np.str(sys.argv[2])
-#==============================================================================
-# USER DEFINED VARIABLES
-#==============================================================================
-
+    ### Cardinfo takes in the  '.sst' file parameters
+    with open(parameterfile, 'r') as read_file:
+        cardinfo = json.loads(read_file.read())
+    # cardinfo=np.loadtxt(parameterfile, comments="#",dtype="str", unpack=False)
+    #parameterfile='/Users/daniel/Google_Drive/Presentations/MyPresentations/WisconsinRainfallProject/Wisconsin_24hrIDF_Madison.sst'
+except :
+    print("You either didn't specify a parameter file, or it doesn't exist on the source path given.")
+#%%
+#### Changed this part of the code
+# if os.path.isfile(parameterfile)==False:
+#     sys.exit("You either didn't specify a parameter file, or it doesn't exist.")
+# else:
+#     print("reading in the parameter file...")
+#     #### Cardinfo takes in the  '.sst' file parameters
+#     cardinfo=np.loadtxt(parameterfile, comments="#",dtype="str", unpack=False)
+#
+#
+# #==============================================================================
+# # USER DEFINED VARIABLES
+# #==============================================================================
+#
 try:
-    wd=str(cardinfo[cardinfo[:,0]=="MAINPATH",1][0])
-    #wd=np.str(sys.argv[2])
+    wd=cardinfo["MAINPATH"]
+    
     try:
-        scenarioname=str(cardinfo[cardinfo[:,0]=="SCENARIONAME",1][0])
-    except Exception:
-        print("You did't specify SCENARIONAME, defaulting to 'RainyDayAnalysis'!")
+        scenarioname=cardinfo["SCENARIONAME"]
+    except ValueError:
+        print("You didn't specify SCENARIONAME, defaulting to 'RainyDayAnalysis'!")
         scenarioname='RainyDayAnalysis'
     fullpath=wd+'/'+scenarioname
     if os.path.isdir(fullpath)==False:
         #os.system('mkdir -p -v %s' %(fullpath))
         os.mkdir(fullpath)
     os.chdir(wd)
+#### Changed this part of the code
 except ImportError:
     sys.exit("You did't specify MAINPATH, which is a required field!")
-
-
-# PROPERTIES RELATED TO SST PROCEDURE:
+#
+#
+# # PROPERTIES RELATED TO SST PROCEDURE:
 try:
-    catalogname=str(cardinfo[cardinfo[:,0]=="CATALOGNAME",1][0])
+    catalogname=cardinfo["CATALOGNAME"]
 except Exception:
     catalogname='SSTstormcatalog.nc'
 if catalogname.find('/')==-1:
-    catalogname=wd+'/'+catalogname
-    
-if len(catalogname.split('.nc'))==1:
-    sys.exit("You didn't specify the '.nc' extension on the storm catalog name!")    
+    catalogname=wd+'/'+catalogname     ### This doesn't looks good to me. We can avaoid this "if" and jsut add the path.
 
+if len(catalogname.split('.nc'))==1:
+    sys.exit("You didn't specify the '.nc' extension on the storm catalog name!")
+#
 try:
-    CreateCatalog=cardinfo[cardinfo[:,0]=="CREATECATALOG",1][0]
+    CreateCatalog=cardinfo["CREATECATALOG"]
 except Exception:
-    sys.exit("You didn't specify CREATECATALOG, which is required!")  
-    
+    sys.exit("You didn't specify CREATECATALOG, which is required!")
+
 if CreateCatalog.lower()=='true':
     CreateCatalog=True
 else:
@@ -194,81 +202,82 @@ else:
         #if catrain.shape[1]==1:
         #    timeres=RainyDay.readtimeresolution(catalogname)
         yres=np.abs(np.mean(latrange[1:]-latrange[0:-1]))
-        xres=np.abs(np.mean(lonrange[1:]-lonrange[0:-1])) 
+        xres=np.abs(np.mean(lonrange[1:]-lonrange[0:-1]))
         catarea=[lonrange[0],lonrange[-1]+xres,latrange[-1]-yres,latrange[0]]
         if np.isclose(xres,yres)==False:
             sys.exit('Sadly, RainyDay currently only supports equal x and y resolutions.')
         else:
             res=np.min([yres,xres])
-
-
+#
+#
 try:
-    nstorms=np.int(cardinfo[cardinfo[:,0]=="NSTORMS",1][0])
+    nstorms=cardinfo["NSTORMS"]
     defaultstorms=False
     print(str(nstorms)+" storms will be identified for storm catalog!")
 except Exception:
     #nstorms=100
     print("you didn't specify NSTORMS, defaulting to 20 per year, or whatever is in the catalog!")
     defaultstorms=True
-
+#
 try:
-    nsimulations=np.int(cardinfo[cardinfo[:,0]=="NYEARS",1][0])
+    nsimulations=cardinfo["NYEARS"]
     print(str(nsimulations)+" years of synthetic storms will be generated, for a max recurrence interval of "+str(nsimulations)+" years!")
 except Exception:
     nsimulations=100
     print("you didn't specify NYEARS, defaulting to 100, for a max recurrence interval of 100 years!")
-
+#
 try:
-    nrealizations=np.int(cardinfo[cardinfo[:,0]=="NREALIZATIONS",1][0])
+    nrealizations=cardinfo["NREALIZATIONS"]
     print(str(nrealizations)+" realizations will be performed!")
 except Exception:
     nrealizations=1
-    
-
+#
+#
 try:
-    duration=np.float32(cardinfo[cardinfo[:,0]=="DURATION",1][0])
+    duration=cardinfo["DURATION"]
     if duration<=0.:
         sys.exit("Duration is zero or negative!")
 except ImportError:
     sys.exit("You didn't specify 'DURATION', which is a required field!")
-
-
-# this following bit is only needed in the very specific (and generally not recommended) case when the desired analysis/catalog duration is equal to the temporal resolution of the dataset
-# try:
-#     temptimeres=np.int(cardinfo[cardinfo[:,0]=="TIMERESOLUTION",1][0])
-#     print("A resolution of "+str(temptimeres)+" minutes has been provided. Be careful with this, because if it is improperly specified, this will cause errors. Note that TIMERESOLUTION is not needed unless the duration of each storm is to be exactly equal to the temporal resolution of the input data or catalog. In other words, make sure you know what you're doing!")
-# except Exception:
-#     temptimeres=False
-    
-
-
+#
+#
+##this following bit is only needed in the very specific (and generally not recommended) case when the desired analysis/catalog duration is equal to the temporal resolution of the dataset
 try:
-    samplingtype=cardinfo[cardinfo[:,0]=="RESAMPLING",1][0]
-    if samplingtype.lower()!='poisson' and samplingtype.lower()!='empirical' and samplingtype.lower()!='negbinom':
+    temptimeres=cardinfo["TIMERESOLUTION"]
+    print("A resolution of "+str(temptimeres)+" minutes has been provided. Be careful with this, because if it is improperly specified, this will cause errors. Note that TIMERESOLUTION is not needed unless the duration of each storm is to be exactly equal to the temporal resolution of the input data or catalog. In other words, make sure you know what you're doing!")
+except Exception:
+    temptimeres=False
+#
+#
+#
+try:
+    samplingtype=cardinfo["RESAMPLING"]
+    sampling_options = ['poisson', 'empirical', 'negbinom']
+    if samplingtype.lower() not in sampling_options:
         sys.exit("unrecognized storm count resampling type, options are: 'poisson', 'empirical', or 'negbinom'")
 except Exception:
     samplingtype='poisson'
-
+#
 if samplingtype=='poisson':
     print("Poisson-based temporal resampling scheme will be used!")
 elif samplingtype=='empirical':
     print("Empirically-based temporal resampling scheme will be used!")
 elif samplingtype=='negbinom':
     print("Negative binomial-based temporal resampling scheme will be used! WARNING: this is not tested!")
-
+#
 try:
-    areatype=str(cardinfo[cardinfo[:,0]=="POINTAREA",1][0])
+    areatype=cardinfo["POINTAREA"]
     if areatype.lower()=="basin" or areatype.lower()=="watershed":
         areatype='basin'
         try:
-            wsmaskshp=str(cardinfo[cardinfo[:,0]=="WATERSHEDSHP",1][0])
+            wsmaskshp=cardinfo["WATERSHEDSHP"]
             print("You selected 'watershed' for 'POINTAREA', please note that if the watershed is not in a regular lat/lon projection such as EPSG4326/WGS 84, the results will likely be incorrect!")
         except IndexError:
-            sys.exit("You specified 'watershed' for 'POINTAREA' but didn't specify 'WATERSHEDSHP'")            
+            sys.exit("You specified 'watershed' for 'POINTAREA' but didn't specify 'WATERSHEDSHP'")
     elif areatype.lower()=="point" or areatype.lower()=="grid":
         try:
-            ptlat=np.float32(cardinfo[cardinfo[:,0]=="POINTLAT",1][0]) 
-            ptlon=np.float32(cardinfo[cardinfo[:,0]=="POINTLON",1][0]) 
+            ptlat=np.float32(cardinfo["POINTLAT"])
+            ptlon=np.float32(cardinfo["POINTLON"])                   
             ctrlat=ptlat
             ctrlon=ptlon
             areatype="point"
@@ -276,33 +285,29 @@ try:
             sys.exit("You specified 'point' for 'POINTAREA' but didn't properly specify 'POINTLAT' and 'POINTLON'")
     elif areatype.lower()=="box" or areatype.lower()=="rectangle":
         try:
-            box1=np.float32(cardinfo[cardinfo[:,0]=="BOX_YMIN",1][0])
-            box2=np.float32(cardinfo[cardinfo[:,0]=="BOX_YMAX",1][0])
-            box3=np.float32(cardinfo[cardinfo[:,0]=="BOX_XMIN",1][0])
-            box4=np.float32(cardinfo[cardinfo[:,0]=="BOX_XMAX",1][0])
+            box1,box2,box3,box4=cardinfo["BOX_YMIN"],cardinfo["BOX_YMAX"],cardinfo["BOX_XMIN"],cardinfo["BOX_XMAX"]
             boxarea=np.array([box3,box4,box1,box2])
-            ctrlat=(box1+box2)/2.
-            ctrlon=(box3+box4)/2.
+            ctrlat, ctrlon=(box1+box2)/2., (box3+box4)/2
             areatype="box"
         except ImportError:
             sys.exit("You specified 'box' for 'POINTAREA' but didn't properly specify 'BOX_YMIN', 'BOX_YMAX', 'BOX_XMIN', and 'BOX_XMAX'")
     elif areatype.lower()=="pointlist":
         if CreateCatalog:
             sys.exit("POINTLIST is currently not available when creating a new storm catalog.")
-        ptlistname=str(cardinfo[cardinfo[:,0]=="POINTLIST",1][0])
+        ptlistname=cardinfo["POINTLIST"]
         #ptlistname=np.str(sys.argv[3])
         ptlistdat=np.loadtxt(ptlistname,skiprows=1,delimiter=',')
         ptlatlist=ptlistdat[:,0]
-        ptlonlist=ptlistdat[:,1] 
+        ptlonlist=ptlistdat[:,1]
         npoints_list=len(ptlatlist)
     else:
         sys.exit("unrecognized area type")
 except ImportError:
     sys.exit("You didn't specify 'POINTAREA', which needs to either be set to 'watershed', 'point', 'grid', or 'rectangle'")
-    
+
 # transposition
 try:
-    transpotype=cardinfo[cardinfo[:,0]=="TRANSPOSITION",1][0]
+    transpotype=cardinfo["TRANSPOSITION"]
     if transpotype.lower()=='kernel' or transpotype.lower()=='nonuniform':
         transpotype='kernel'
         print("You selected the kernel density-based non-uniform storm transposition scheme!")
@@ -319,12 +324,12 @@ try:
 except Exception:
     transpotype='uniform'
     print("You didn't specify 'TRANSPOSITION', defaulting to spatially uniform scheme!")
- 
 
-# Use stochastic or deterministic ratio multiplier?
+#
+# # Use stochastic or deterministic ratio multiplier?
 rescaletype='none'
 try:
-    rescalingtype=cardinfo[cardinfo[:,0]=="ENHANCEDSST",1][0]
+    rescalingtype=cardinfo["ENHANCEDSST"]
     if rescalingtype.lower()=='stochastic' or rescalingtype.lower()=='deterministic':
         print("You selected the 'Ratio Rescaling'! This is a more advanced option that should be used with caution")
         if rescalingtype.lower()=='stochastic':
@@ -336,46 +341,46 @@ try:
         if rescalingtype.lower()=='deterministic':
             rescaletype='deterministic'
             print("You selected deterministic ratio rescaling. This has not been thoroughly vetted. Be careful!")
-        
+
         try:
-            rescalingfile=cardinfo[cardinfo[:,0]=="RAINDISTRIBUTIONFILE",1][0]
+            rescalingfile=cardinfo["RAINDISTRIBUTIONFILE"]
             if os.path.isfile(rescalingfile)==False:
                 sys.exit("The precipitation file specified in 'RAINDISTRIBUTIONFILE' cannot be found!")
         except IndexError:
-            sys.exit("Even though you 'ratio rescaling', you didn't specify the file of precipitation distributions!")  
+            sys.exit("Even though you 'ratio rescaling', you didn't specify the file of precipitation distributions!")
     elif rescalingtype.lower()=='dimensionless':
         print("You selected 'dimensionless SST', modeled after Nathan et al. (2016). This has not been thoroughly vetted. Be careful!")
         rescaletype='dimensionless'
         try:
-            rescalingfile=cardinfo[cardinfo[:,0]=="RAINDISTRIBUTIONFILE",1][0]
+            rescalingfile=cardinfo["RAINDISTRIBUTIONFILE"]
             if os.path.isfile(rescalingfile)==False:
                 sys.exit("The precipitation file specified in 'RAINDISTRIBUTIONFILE' cannot be found!")
         except IndexError:
-            sys.exit("Even though you 'dimensionless SST', you didn't specify the file of precipitation distributions!")      
+            sys.exit("Even though you 'dimensionless SST', you didn't specify the file of precipitation distributions!")
     else:
         print("No rescaling will be performed!")
 except Exception:
     print("No rescaling will be performed!")
 
-    
-try:   
-    do_deterministic=cardinfo[cardinfo[:,0]=="MAXTRANSPO",1][0]
+
+try:
+    do_deterministic=cardinfo["MAXTRANSPO"]
     if do_deterministic.lower():
         deterministic=True
     else:
         deterministic=False
 except Exception:
     deterministic=False
-    
+#
 try:
-    domain_type=cardinfo[cardinfo[:,0]=="DOMAINTYPE",1][0] 
+    domain_type=cardinfo["DOMAINTYPE"]
 except Exception:
     domain_type='rectangular'
-    
+
 if domain_type.lower()=='rectangular':
     shpdom=False
     ncfdom=False
-   
+
 if domain_type.lower()=='irregular':
     print("Irregular domain type selected!")
     domain_type='irregular'
@@ -383,7 +388,7 @@ if domain_type.lower()=='irregular':
     shpdom=False
     if CreateCatalog:
         try:
-            domainshp=str(cardinfo[cardinfo[:,0]=="DOMAINSHP",1][0])
+            domainshp=cardinfo["DOMAINSHP"]
             if os.path.isfile(domainshp)==False:
                 sys.exit("can't find the transposition domain shapefile!")
             else:
@@ -392,18 +397,18 @@ if domain_type.lower()=='irregular':
                 ds = shapefile.Reader(domainshp,'rb')
                 tempbox= ds.bbox
                 inarea=np.array([tempbox[0],tempbox[2],tempbox[1],tempbox[3]],dtype='float32')
-                
+
         except Exception:
             pass
         try:
-            domainncf=str(cardinfo[cardinfo[:,0]=="DOMAINFILE",1][0])
+            domainncf=cardinfo["DOMAINFILE"]
             if os.path.isfile(domainncf)==False:
                 sys.exit("This capability isn't tested. Unclear whether changes are needed due to updating for CF compliance.")
-                sys.exit("Can't find the transposition domain NetCDF file!")  
+                sys.exit("Can't find the transposition domain NetCDF file!")
             else:
                 sys.exit("This capability isn't tested. Unclear whether changes are needed due to updating for CF compliance.")
                 print("Domain NetCDF file found!")
-                ncfdom=True  
+                ncfdom=True
                 domainmask,domainlat,domainlon=RainyDay.readdomainfile(domainncf)
                 res=np.abs(np.mean(domainlat[1:]-domainlat[0:-1]))
                 xmin=np.min(np.where(np.sum(domainmask,axis=0)!=0))
@@ -418,31 +423,28 @@ if domain_type.lower()=='irregular':
             pass
     else:
         try:
-            domainshp=str(cardinfo[cardinfo[:,0]=="DOMAINSHP",1][0])
+            domainshp=cardinfo["DOMAINSHP"]
             if os.path.isfile(domainshp)==False:
                 sys.exit("can't find the transposition domain shapefile!")
             else:
                 print("You selected 'irregular' for 'DOMAINTYPE', please note that if the domain shapefile is not in a regular lat/lon projection such as EPSG4326/WGS 84, the results will likely be incorrect!")
                 shpdom=True
         except Exception:
-            print("Trouble finding the domain shapefile. Technically we don't need it, so we'll skip this part.")          
+            print("Trouble finding the domain shapefile. Technically we don't need it, so we'll skip this part.")
         yres=np.abs(np.mean(latrange[1:]-latrange[0:-1]))
         xres=np.abs(np.mean(lonrange[1:]-lonrange[0:-1]))
-        inarea=np.array([lonrange[0],lonrange[-1]+res,latrange[-1]-res,latrange[0]])  
-    
+        inarea=np.array([lonrange[0],lonrange[-1]+res,latrange[-1]-res,latrange[0]])
+
     if ncfdom==False and shpdom==False and CreateCatalog:
         sys.exit("You selected 'irregular' for 'DOMAINTYPE', but didn't provide a shapefile or NetCDF file for the domain!")
-else:  ###### Ashar:  Dan I beleive we can remove this condition and add it to the "if" condition which may avoid extra condition.
+else:  ###### Ashar:  Dan I beleive we can remove this condition and add it to the if condition above, this may avoid extra condition.
     print("rectangular domain type selected!")
-    domain_type='rectangular'   
+    domain_type='rectangular'
     if CreateCatalog==False:
         inarea=deepcopy(catarea)
     else:
         try:
-            lim1=np.float32(cardinfo[cardinfo[:,0]=="LATITUDE_MIN",1][0])
-            lim2=np.float32(cardinfo[cardinfo[:,0]=="LATITUDE_MAX",1][0])
-            lim3=np.float32(cardinfo[cardinfo[:,0]=="LONGITUDE_MIN",1][0]) 
-            lim4=np.float32(cardinfo[cardinfo[:,0]=="LONGITUDE_MAX",1][0]) 
+            lim1,lim2,lim3,lim4 = cardinfo["Area_Extent"].values()
             inarea=np.array([lim3,lim4,lim1,lim2])
         except ImportError:
             sys.exit("need to specify 'LATITUDE_MIN', 'LATITUDE_MAX', 'LONGITUDE_MIN', 'LONGITUDE_MAX'")
@@ -453,40 +455,40 @@ if CreateCatalog==False and np.allclose(inarea,catarea)==False:
         sys.exit("You are changing the domain size, but it fits inside the catalog domain. That's a start, but RainyDay still can't handle it.")
     else:
         sys.exit("You are changing the domain size for an existing catalog. RainyDay can't handle that!")
-        
-try:  
-    DoDiagnostics=cardinfo[cardinfo[:,0]=="DIAGNOSTICPLOTS",1][0]
+#
+try:
+    DoDiagnostics=cardinfo["DIAGNOSTICPLOTS"]
     if DoDiagnostics.lower()=='true':
         DoDiagnostics=True
     else:
         DoDiagnostics=False
 except Exception:
-    DoDiagnostics=True  
+    DoDiagnostics=True
 
 diagpath=fullpath+'/Diagnostics/'
-if DoDiagnostics==True:     
+if DoDiagnostics==True:
     if os.path.isdir(wd+scenarioname+'/Diagnostics')==False:
         #os.system('mkdir %s' %(diagpath))
         try:
             os.mkdir(diagpath)
         except:
             pass
-#if DoDiagnostics and shpdom:
-#                import geopandas as gpd
-#                dshp = gpd.read_file(domainshp)
-#                #print stateshp1.crs
-#                dshp.crs={}
-#                dshp.to_file(domainshp, driver='ESRI Shapefile')
-    
+if DoDiagnostics and shpdom:
+                import geopandas as gpd
+                dshp = gpd.read_file(domainshp)
+                #print stateshp1.crs
+                dshp.crs={}
+                dshp.to_file(domainshp, driver='ESRI Shapefile')
+
 try:
-    FreqAnalysis=cardinfo[cardinfo[:,0]=="FREQANALYSIS",1][0]
+    FreqAnalysis=cardinfo["FREQANALYSIS"]
     if FreqAnalysis.lower()=='true':
         FreqAnalysis=True
     else:
         FreqAnalysis=False
 except Exception:
     FreqAnalysis=True
-    
+
 
 if areatype.lower()=="pointlist":
     FreqFile_mean=fullpath+'/'+scenarioname+'_mean.FreqAnalysis'
@@ -496,7 +498,7 @@ else:
     FreqFile=fullpath+'/'+scenarioname+'_FreqAnalysis.csv'
 
 try:
-    Scenarios=cardinfo[cardinfo[:,0]=="SCENARIOS",1][0]
+    Scenarios=cardinfo["SCENARIOS"]
     if Scenarios.lower()=='true' and areatype.lower()!="pointlist":
         Scenarios=True
         FreqAnalysis=True
@@ -514,24 +516,23 @@ try:
 except Exception:
     Scenarios=False
     print("You didn't specify 'SCENARIOS', defaulting to 'false', no scenarios will be written!")
-
-
-# EXLCUDE CERTAIN MONTHS
+#
+#
+# # EXLCUDE CERTAIN MONTHS
 try:
-    exclude=cardinfo[cardinfo[:,0]=="EXCLUDEMONTHS",1][0]
-    if exclude.lower()!="none":
-        exclude=exclude.split(',')
-        excludemonths=np.empty(len(exclude),dtype="int32")
-        for i in np.arange(0,len(exclude)):
-            excludemonths[i]=np.int(exclude[i])
+    exclude=cardinfo["EXCLUDEMONTHS"]
+    if type(exclude) == str:
+        if exclude.lower() == 'none':
+
+            excludemonths=False
     else:
-        excludemonths=False
+        excludemonths=exclude
 except Exception:
     excludemonths=False
-    
-# INCLUDE ONLY CERTAIN YEARS
+#
+# # INCLUDE ONLY CERTAIN YEARS
 try:
-    includeyr=cardinfo[cardinfo[:,0]=="INCLUDEYEARS",1][0] 
+    includeyr=cardinfo["INCLUDEYEARS"]
     if includeyr.lower()!="all":
         if ',' in includeyr:
             includeyr=includeyr.split(',')
@@ -548,24 +549,25 @@ try:
         includeyears=False
 except Exception:
     includeyears=False
-
-# MINIMUM RETURN PERIOD THRESHOLD FOR WRITING RAINFALL SCENARIO (THIS WILL HAVE A HUGE IMPACT ON THE SIZE OF THE OUTPUT FILES!)  IN PRINCIPLE IT IS PERHAPS BETTER TO USE AN INTENSITY BUT THIS IS CLEANER!
+#
+# # MINIMUM RETURN PERIOD THRESHOLD FOR WRITING RAINFALL SCENARIO (THIS WILL HAVE A HUGE IMPACT ON THE SIZE OF THE OUTPUT FILES!)  IN PRINCIPLE IT IS PERHAPS BETTER TO USE AN INTENSITY BUT THIS IS CLEANER!
 try:
-    RainfallThreshYear=np.int(cardinfo[cardinfo[:,0]=="RETURNTHRESHOLD",1][0])
+    RainfallThreshYear=cardinfo["RETURNTHRESHOLD"]
 except Exception:
     RainfallThreshYear=1
-
-# DIRECTORY INFO-WHERE DOES THE INPUT DATASET RESIDE?
+#
+# # DIRECTORY INFO-WHERE DOES THE INPUT DATASET RESIDE?
 if CreateCatalog:
     try:
-        inpath=str(cardinfo[cardinfo[:,0]=="RAINPATH",1][0])
+        inpath=cardinfo["RAINPATH"]
+        ds = xr.open_mfdataset(inpath, parallel =True)
     except ImportError:
         sys.exit("You didn't specify 'RAINPATH', which is a required field for creating a new storm catalog!")
 
 
 # SENSITIVITY ANALYSIS OPTIONS:
 try:
-    IntensitySens=cardinfo[cardinfo[:,0]=="SENS_INTENSITY",1][0]
+    IntensitySens=cardinfo["SENS_INTENSITY"]
     if IntensitySens.lower()!='false':
         IntensitySens=1.+np.float(IntensitySens)/100.
     else:
@@ -574,7 +576,7 @@ except Exception:
     IntensitySens=1.
 
 try:
-    FrequencySens=cardinfo[cardinfo[:,0]=="SENS_FREQUENCY",1][0]     
+    FrequencySens=cardinfo["SENS_FREQUENCY"]
     if FrequencySens.lower()!='false':
         if samplingtype.lower()!='poisson':
             sys.exit("Sorry, you can't modify the resampling frequency unless you use the Poisson resampler.")
@@ -583,12 +585,12 @@ try:
     else:
         FrequencySens=1.
 except Exception:
-    FrequencySens=1.    
+    FrequencySens=1.
     pass
 
 if areatype=='point' or areatype=='pointlist':
     try:
-        ARFval=cardinfo[cardinfo[:,0]=="POINTADJUST",1][0]     
+        ARFval=cardinfo["POINTADJUST"]
         if ARFval.lower()!='false':
             print("Using the POINTADJUST option! Be sure you know what you're doing!")
             if ',' in ARFval:
@@ -596,17 +598,17 @@ if areatype=='point' or areatype=='pointlist':
                 arfval=np.array(ARFval.split(','),dtype='float32')
             else:
                 arfval=np.array([np.float(ARFval)])
-            
+
         else:
             FrequencySens=1.
     except Exception:
-        arfval=np.array([1.])    
+        arfval=np.array([1.])
         pass
 else:
     arfval=np.array([1.])
 
-try:    
-    CalcType=cardinfo[cardinfo[:,0]=="CALCTYPE",1][0]
+try:
+    CalcType=cardinfo["CALCTYPE"]
     if CalcType.lower()=='ams' or CalcType.lower()=='annmax':
         calctype='ams'
         print("You've selected to use Annual Maxima Series.")
@@ -621,28 +623,28 @@ except Exception:
 
 if calctype=='pds' and Scenarios:
     sys.exit("Unfortunately, RainyDay currently only allows Partial Duration Series for rainfall frequency analysis, not for scenario writing. You can change CALCTYPE to 'AMS' and try again.")
-    
-
-# here is where we'll determine if you want to write more than one storm per year to realization files
-# ideally would write the if statement better to provide more guidance if the user provides some weird combination, such as 'CALCTYPE pds' and 'NPERYEAR 5'
+#
+#
+# # here is where we'll determine if you want to write more than one storm per year to realization files
+# # ideally would write the if statement better to provide more guidance if the user provides some weird combination, such as 'CALCTYPE pds' and 'NPERYEAR 5'
 if Scenarios and areatype.lower()!="pointlist":
     try:
-        nperyear=cardinfo[cardinfo[:,0]=="NPERYEAR",1]
+        nperyear=cardinfo["NPERYEAR"]
         if nperyear!='false' or np.int(nperyear)!=1:
             print("RainyDay will output "+str(np.int(nperyear))+" storms per synthetic year! If this is a big number, this could be very slow!")
             calctype='npyear'
             nperyear=np.int(nperyear)
             if nperyear==1:
-            	nperyear='false'
-#        else:
-#            print("RainyDay will output "+str(nperyear)+" storms per synthetic year!")
+                nperyear='false'
+    #        else:
+    #            print("RainyDay will output "+str(nperyear)+" storms per synthetic year!")
     except Exception:
-       pass
-
-        
-
-try:    
-    userdistr=cardinfo[cardinfo[:,0]=="INTENSDISTR",1][0]
+        pass
+#
+#
+#
+try:
+    userdistr=cardinfo["INTENSDISTR"]
     if userdistr.lower()=='false':
         userdistr=np.zeros((1),dtype='bool')
     elif len(userdistr.split(','))==3:
@@ -654,13 +656,13 @@ except Exception:
     userdistr=np.zeros((1),dtype='bool')
     pass
 
-
- 
+#
+#
 if Scenarios:
     try:
-        if np.any(np.core.defchararray.find(cardinfo[:,0],"SPINPERIOD")>-1):
-            pretime=cardinfo[cardinfo[:,0]=="SPINPERIOD",1][0]  
-             
+        if np.any(np.core.defchararray.find(list(cardinfo.keys()),"SPINPERIOD")>-1):
+            pretime=cardinfo["SPINPERIOD"]
+
             if pretime.lower()=='none' or pretime.lower()=='false':
                 prependrain=False
                 print('spinup precipitation will be not included in precipitation scenarios...')
@@ -680,7 +682,7 @@ if Scenarios:
                         print( np.str(pretime)+' days of spinup precipitation will be included in precipitation scenarios...')
                 except:
                     sys.exit('unrecognized value provided for SPINPERIOD.')
-               
+
         else:
             prependrain=False
             print('no SPINPERIOD field was provided.  Spin-up precipitation will be not be included...')
@@ -688,8 +690,8 @@ if Scenarios:
         print('no SPINPERIOD field was provided.  Spin-up precipitation will be not be included...')
 
 try:
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"UNCERTAINTY")>-1):       
-        spread=cardinfo[cardinfo[:,0]=="UNCERTAINTY",1][0]
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"UNCERTAINTY")>-1):
+        spread=cardinfo["UNCERTAINTY"]
         if spread.lower()=='ensemble':
             spreadtype='ensemble'
             print('"ensemble spread" will be calculated for precipitation frequency analysis...')
@@ -703,16 +705,16 @@ try:
                 quantilecalc=int(spread)
                 printcalc=(100-quantilecalc)//2
                 print(str(printcalc)+'th-'+str(quantilecalc+printcalc)+'th interquantile range will be calculated for precipitation frequency analysis...')
-            else: 
+            else:
                 sys.exit('invalid quantile range for frequency analysis...')
     else:
         spreadtype='ensemble'
 except Exception:
     spreadtype='ensemble'
-                
-try:    
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"RETURNLEVELS")>-1):
-        speclevels=cardinfo[cardinfo[:,0]=="RETURNLEVELS",1][0]
+
+try:
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"RETURNLEVELS")>-1):
+        speclevels=cardinfo["RETURNLEVELS"]
         if speclevels.lower()=='all':
             print('using all return levels...')
             alllevels=True
@@ -724,7 +726,7 @@ try:
                     speclevels=np.float32(speclevels)
                 except:
                     print("Non-numeric value provided to RETURNLEVELS.")
-                    
+
                 speclevels=speclevels[speclevels<=nsimulations+0.00001]
                 speclevels=speclevels[speclevels>=0.99999]
             else:
@@ -732,18 +734,18 @@ try:
     else:
         alllevels=True
 except Exception:
-    alllevels=True    
-      
-     
+    alllevels=True
+
+
 try:
     rotation=False
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"ROTATIONANGLE")>-1):
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"ROTATIONANGLE")>-1):
         try:
-            rotangle=cardinfo[cardinfo[:,0]=="ROTATIONANGLE",1][0]
+            rotangle=cardinfo["ROTATIONANGLE"]
         except ImportError:
             "You're trying to use storm rotation, but didn't specify 'ROTATIONANGLE'"
         if rotangle.lower()=='none' or rotangle.lower()=='false' or areatype.lower()=="point":
-            rotation=False            
+            rotation=False
         else:
             rotation=True
             if len(rotangle.lower().split(','))!=3:
@@ -762,41 +764,41 @@ try:
                     nanglebins=np.int32(nanglebins,dtype="float32")
                 except:
                     print('Unrecognized entry provided for ROTATIONANGLE number of bins.')
-                    
+
                 if minangle>0. or maxangle<0.:
                     sys.exit('The minimum angle should be negative and the maximum angle should be positive.')
 except Exception:
-    rotation=False   
-    
+    rotation=False
+
 if rotation:
     print("storm rotation will be used...")
     delarray=[]
-
-
-# should add a "cell-centering" option!
-
-# read in the start and end hour stuff-for doing IDFs for specific times of day-IS THIS ACTUALLY FUNCTIONAL???:
+#
+#
+# # should add a "cell-centering" option!
+#
+# # read in the start and end hour stuff-for doing IDFs for specific times of day-IS THIS ACTUALLY FUNCTIONAL???:
 try:
-    starthour=np.float32(cardinfo[cardinfo[:,0]=="STARTHOUR",1][0])
+    starthour=cardinfo["STARTHOUR"]
     subday=True
 except:
     starthour=0.
-
-try: 
-    endhour=np.float32(cardinfo[cardinfo[:,0]=="ENDHOUR",1][0])
+#
+try:
+    endhour=cardinfo["ENDHOUR"]
     subday=True
 except:
     endhour=24.
     subday=False
-    
+
 if starthour!=0. and endhour!=24.:
     if (endhour-starthour)<duration:
-        duration=endhour-starthour 
+        duration=endhour-starthour
         sys.exit("Not sure I ever finished writing this capability!")
 
-try:    
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"DURATIONCORRECTION")>-1):
-        durcorr=cardinfo[cardinfo[:,0]=="DURATIONCORRECTION",1][0]
+try:
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"DURATIONCORRECTION")>-1):
+        durcorr=cardinfo["DURATIONCORRECTION"]
         if durcorr.lower()=='false':
             durcorrection=False
             print('DURATIONCORRECTION set to "false". No correction will be used.')
@@ -810,16 +812,16 @@ try:
         durcorrection=False
 except Exception:
     durcorrection=False
-   
+
 # Added by DBW, 16 Feb 2021, specifically to support Dr. Emad Habib's team in performing ARF analyses.
-# If ARFANALYSIS is used, DURATIONCORRECTION will be turned on automatically, and the scenarios will have a duration equal to DURATION. 
-#This is sensible if the objective is to create rainfall scenario files for subsequent analysis (ARFs, scaling properties, etc.). 
+# If ARFANALYSIS is used, DURATIONCORRECTION will be turned on automatically, and the scenarios will have a duration equal to DURATION.
+#This is sensible if the objective is to create rainfall scenario files for subsequent analysis (ARFs, scaling properties, etc.).
 # If ARFANALYSIS is turned off and DURATIONCORRECTION is turned on, then the rainfall scenarios will under most circumstances have a longer duration than DURATION.
 # This latter approach (DURATIONCORRECTION on, ARFANALYSIS off) is a more justifiable way of generating rainfall scenarios for flood modeling.
-# Also, this ARFANALYSIS option isn't set up to work with 'pointlists'. 
+# Also, this ARFANALYSIS option isn't set up to work with 'pointlists'.
 try:
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"ARFANALYSIS")>-1):
-        arfcorr=cardinfo[cardinfo[:,0]=="ARFANALYSIS",1][0]
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"ARFANALYSIS")>-1):
+        arfcorr=cardinfo["ARFANALYSIS"]
         if arfcorr.lower()=='false':
             arfcorrection=False
         elif arfcorr.lower()=='true' and areatype.lower()!="pointlist":
@@ -841,18 +843,18 @@ if CreateCatalog and durcorrection:
     print('Since DURCORRECTION will be used and a storm catalog will be created, the duration of the catalog will be '+"{0:0.2f}".format(catduration)+' hours')
 elif CreateCatalog:
     catduration=duration
-   
-    
+
+
 #sys.exit('decide what to do with duration correction and timeseparation!')
 try:
-    timeseparation=np.float32(cardinfo[cardinfo[:,0]=="TIMESEPARATION",1][0])     
+    timeseparation=cardinfo["TIMESEPARATION"]
 except Exception:
-    timeseparation=0. 
-    
-islassiter=False   
-try:    
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"ISLASSITER")>-1):
-        islassiter=cardinfo[cardinfo[:,0]=="ISLASSITER",1][0]
+    timeseparation=0.
+
+islassiter=False
+try:
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"ISLASSITER")>-1):
+        islassiter=cardinfo["ISLASSITER"]
         if islassiter.lower()!="false":
             islassiter=True
             print("Using Lassiter-style Netcdf files!")
@@ -860,16 +862,17 @@ try:
             islassiter=False
 except Exception:
     pass
-try:    
-    if np.any(np.core.defchararray.find(cardinfo[:,0],"ISFITZGERALD")>-1):
-        islassiter=cardinfo[cardinfo[:,0]=="ISFITZGERALD",1][0]
+try:
+    if np.any(np.core.defchararray.find(list(cardinfo.keys()),"ISFITZGERALD")>-1):
+        islassiter=cardinfo["ISFITZGERALD"]
         if islassiter.lower()!="false":
             islassiter=True
             print("Using FitzGerald-style Netcdf files!")
         else:
             islassiter=False
 except Exception:
-    pass        
+    pass
+
   
 
 #==============================================================================
@@ -1293,7 +1296,7 @@ if CreateCatalog:
                                   catmax[i],\
                                       catx[i],caty[i],\
                                           cattime[i,:],latrange,lonrange,\
-                                              storm_name,catmask,parameterfile_json,domainmask,\
+                                              storm_name,catmask,parameterfile,domainmask,\
                                                   timeresolution=rainprop.timeres)      
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
@@ -1323,7 +1326,7 @@ if CreateCatalog==False:
 includestorms=np.ones((len(catmax)),dtype="bool")
 
 try:
-    exclude=cardinfo[cardinfo[:,0]=="EXCLUDESTORMS",1][0] 
+    exclude=cardinfo["EXCLUDESTORMS"]
     exclude=exclude.replace(' ', '')
 except Exception:
     exclude='none'
