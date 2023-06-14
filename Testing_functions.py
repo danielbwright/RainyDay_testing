@@ -27,5 +27,5 @@ def readnetcdf(rfile,inbounds=False,lassiterfile=False):
     return outrain,outtime,outlatitude,outlongitude
 
 rfile = '/Volumes/TheCordex/Ben_Data/_1980/AORC.19800101.preciptemp.nc'
-inarea = [-90.5, -88, 42.5, 44]
+inarea = [-89.5, -89.25, 43, 43.25]
 rain,timer,latr,lonr = readnetcdf(rfile, inarea)
