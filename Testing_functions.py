@@ -14,8 +14,8 @@ def readnetcdf(rfile,inbounds=False,lassiterfile=False):
     index = [x.lower() for x in variables].index(search_string.lower())
     if np.any(inbounds!=False):
         latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
-        outrain=infile[variables[index]].sel(latitude =slice(latmin,latmax+1),\
-                                                  longitude=slice(longmin,longmax+1))
+        outrain=infile[variables[index]].sel(latitude =slice(latmin,latmax),\
+                                                  longitude=slice(longmin,longmax))
         outlatitude=outrain['latitude']
         outlongitude=outrain['longitude']        
     else:
@@ -27,5 +27,5 @@ def readnetcdf(rfile,inbounds=False,lassiterfile=False):
     return outrain,outtime,outlatitude,outlongitude
 
 rfile = '/Volumes/TheCordex/Ben_Data/_1980/AORC.19800101.preciptemp.nc'
-inarea = [-89.5, -89.25, 43, 43.25]
+inarea = [-90.5, -88, 42.5, 44]
 rain,timer,latr,lonr = readnetcdf(rfile, inarea)
