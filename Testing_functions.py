@@ -7,7 +7,7 @@ Created on Tue Jun 13 01:03:11 2023
 """
 import numpy as np
 import xarray as xr
-def readnetcdf(rfile,inbounds=False,lassiterfile=False):
+def readnetcdf(rfile,rainprop,inbounds=False,lassiterfile=False):
     infile=xr.open_dataset(rfile)
     search_string = 'rainrate'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
@@ -29,3 +29,6 @@ def readnetcdf(rfile,inbounds=False,lassiterfile=False):
 rfile = '/Volumes/TheCordex/Ben_Data/_1980/AORC.19800101.preciptemp.nc'
 inarea = [-90.5, -88, 42.5, 44]
 rain,timer,latr,lonr = readnetcdf(rfile, inarea)
+#%%
+x = np.arange(0,10,1)
+y = np.arange(10,0,-1)

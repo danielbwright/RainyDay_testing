@@ -886,7 +886,7 @@ if CreateCatalog:
   
     
     # GET SUBDIMENSIONS, ETC. FROM THE NETCDF FILE RATHER THAN FROM RAINPROPERTIES  
-    rainprop.spatialres,rainprop.dimensions,rainprop.bndbox,rainprop.timeres,rainprop.nodata=RainyDay.rainprop_setup(flist[0],lassiterfile=islassiter)
+    rainprop.spatialres,rainprop.dimensions,rainprop.bndbox,rainprop.timeres,rainprop.nodata=RainyDay.rainprop_setup(flist[0],rainprop,lassiterfile=islassiter)
     spatres=rainprop.spatialres[0]
     
     
@@ -895,7 +895,7 @@ if CreateCatalog:
     #==============================================================================
     # 'subgrid' defines the transposition domain
  
-    rainprop.subextent,rainprop.subind,rainprop.subdimensions=RainyDay.findsubbox(inarea,rainprop)
+    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,rainprop,flist[0])
     if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
@@ -961,9 +961,10 @@ elif durcorrection:
     timeseparation=np.max([timeseparation+duration,catduration])
 
 spatres=rainprop.spatialres[0]
-ingridx,ingridy=np.meshgrid(np.arange(rainprop.subextent[0],rainprop.subextent[1]-spatres/1000.,spatres),np.arange(rainprop.subextent[3],rainprop.subextent[2]+spatres/1000.,-spatres))        
-lonrange=ingridx[0,:]
-latrange=ingridy[:,0]
+# ingridx,ingridy=np.meshgrid(np.arange(rainprop.subextent[0],rainprop.subextent[1]-spatres/1000.,spatres),np.arange(rainprop.subextent[3],rainprop.subextent[2]+spatres/1000.,-spatres)) 
+ingridx,ingridy=np.meshgrid(lonrange,latrange)        
+# lonrange=ingridx[0,:]
+# latrange=ingridy[:,0]
 
 #============================================================================
 # Do the setup to run for specific times of day!
@@ -979,7 +980,7 @@ else:
     sys.exit("Restrictions to certain hours isn't currently tested or supported")
     try:
         sys.exit("need to fix this")
-        _,temptime,_,_=RainyDay.readnetcdf(flist[0],inbounds=rainprop.subind,lassiterfile=islassiter)
+        _,temptime,_,_=RainyDay.readnetcdf(flist[0],inbounds=inarea,lassiterfile=islassiter)
     except Exception:
         sys.exit("Can't find the input files necessary for setup to calculate time-of-day-specific IDF curves")
 
@@ -1185,7 +1186,7 @@ if CreateCatalog:
     start = time.time()
     for i in filerange: 
         infile=flist[i]
-        inrain,intime,_,_=RainyDay.readnetcdf(infile,inbounds=rainprop.subind,lassiterfile=islassiter)
+        inrain,intime,_,_=RainyDay.readnetcdf(infile,rainprop,inbounds=inarea)
         inrain=inrain[hourinclude,:]
         intime=intime[hourinclude]
         inrain[inrain<0.]=np.nan
@@ -1271,8 +1272,7 @@ if CreateCatalog:
                     if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
                         stm_file = file
                         break
-                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,inbounds=rainprop.subind,\
-                                                            lassiterfile=islassiter)
+                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,rainprop,inbounds=inarea)
             cind = np.where(stm_time == current_datetime)[0][0]
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
