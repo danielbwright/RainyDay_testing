@@ -134,8 +134,6 @@ try:
     ### Cardinfo takes in the  '.sst' file parameters
     with open(parameterfile, 'r') as read_file:
         cardinfo = json.loads(read_file.read())
-    # cardinfo=np.loadtxt(parameterfile, comments="#",dtype="str", unpack=False)
-    #parameterfile='/Users/daniel/Google_Drive/Presentations/MyPresentations/WisconsinRainfallProject/Wisconsin_24hrIDF_Madison.sst'
 except :
     print("You either didn't specify a parameter file, or it doesn't exist on the source path given.")
 #%%
@@ -1262,7 +1260,10 @@ if CreateCatalog:
         stm_file = None
         count = 0
         while current_datetime <= end_time:
-            current_date = np.datetime_as_string(current_datetime - rainprop.timeres, unit='D')
+            if rainprop.timeres == np.float32(1440.):
+                current_date = np.datetime_as_string(current_datetime, unit='D')
+            else:
+                current_date = np.datetime_as_string(current_datetime - rainprop.timeres, unit='D')
             if current_date != dataset_date:
                 dataset_date = current_date
                 # This loop searches for the right file to open from the filelist

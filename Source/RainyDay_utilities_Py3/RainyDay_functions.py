@@ -868,17 +868,17 @@ def findsubbox(inarea,rainprop,flist):
     outextent = np.empty([4])
     outdim=np.empty([2], dtype= 'int')
     infile=xr.open_dataset(flist)
-    search_string = 'rainrate'     #### Used these lines to counter small case letters.
+    search_string = 'prcp'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
     index = [x.lower() for x in variables].index(search_string.lower())
     latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
-    outrain=infile[variables[index]].sel(latitude =slice(latmin,latmax),\
-                                              longitude=slice(longmin,longmax))
-    outextent[2], outextent[3],outextent[0], outextent[1]=outrain['latitude'][0],outrain['latitude'][-1],\
-                                outrain['longitude'][0], outrain['longitude'][-1]       
-    outdim[0], outdim[1] = len(outrain['latitude']), len(outrain['longitude'])
+    outrain=infile[variables[index]].sel(lat =slice(latmin,latmax),\
+                                              lon=slice(longmin,longmax))
+    outextent[2], outextent[3],outextent[0], outextent[1]=outrain['lat'][0],outrain['lat'][-1],\
+                                outrain['lon'][0], outrain['lon'][-1]       
+    outdim[0], outdim[1] = len(outrain['lat']), len(outrain['lon'])
     infile.close()
-    return outextent, outdim, np.array(outrain['latitude'])[::-1], np.array(outrain['longitude'])
+    return outextent, outdim, np.array(outrain['lat'])[::-1], np.array(outrain['lon'])
     
     
     
@@ -1236,40 +1236,22 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 
 
 
-# def readnetcdf(rfile,inbounds=False,lassiterfile=False):
-#     infile=xr.open_dataset(rfile)
-#     search_string = 'rainrate'     #### Used these lines to counter small case letters.
-#     variables = list(infile.variables.keys())
-#     index = [x.lower() for x in variables].index(search_string.lower())
-#     if np.any(inbounds!=False):
-#         latmin,latmax,longmin,longmax = inbounds[3],inbounds[2],inbounds[0],inbounds[1]
-#         outrain=infile[variables[index]].isel(latitude =slice(latmin,latmax+1),\
-#                                                   longitude=slice(longmin,longmax+1))
-#         outlatitude=outrain['latitude']
-#         outlongitude=outrain['longitude']        
-#     else:
-#         outrain=infile[variables[index]]
-#         outlatitude=outrain['latitude']
-#         outlongitude=outrain['longitude'] 
-#     outtime=np.array(infile['time'],dtype='datetime64[m]')
-#     infile.close()
-#     return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
 
 def readnetcdf(rfile,rainprop,inbounds=False):
     infile=xr.open_dataset(rfile)
-    search_string = 'rainrate'     #### Used these lines to counter small case letters.
+    search_string = 'prcp'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
     index = [x.lower() for x in variables].index(search_string.lower())
     if np.any(inbounds!=False):
         latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
-        outrain=infile[variables[index]].sel(latitude =slice(latmin,latmax),\
-                                                  longitude=slice(longmin,longmax))
-        outlatitude=outrain['latitude']
-        outlongitude=outrain['longitude']        
+        outrain=infile[variables[index]].sel(lat =slice(latmin,latmax),\
+                                                  lon=slice(longmin,longmax))
+        outlatitude=outrain['lat']
+        outlongitude=outrain['lon']        
     else:
         outrain=infile[variables[index]]
-        outlatitude=outrain['latitude']
-        outlongitude=outrain['longitude'] 
+        outlatitude=outrain['lat']
+        outlongitude=outrain['lon'] 
     outtime=np.array(infile['time'],dtype='datetime64[m]')
     infile.close()
     return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)

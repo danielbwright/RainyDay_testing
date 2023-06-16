@@ -7,7 +7,7 @@ Created on Tue Jun 13 01:03:11 2023
 """
 import numpy as np
 import xarray as xr
-def readnetcdf(rfile,rainprop,inbounds=False,lassiterfile=False):
+def readnetcdf(rfile,inbounds):
     infile=xr.open_dataset(rfile)
     search_string = 'rainrate'     #### Used these lines to counter small case letters.
     variables = list(infile.variables.keys())
