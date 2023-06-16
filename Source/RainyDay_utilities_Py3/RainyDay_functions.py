@@ -1237,21 +1237,39 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 
 
 
-def readnetcdf(rfile,rainprop,inbounds=False):
+def readnetcdf(rfile,variables,inbounds=False):
+    """
+    Used to trim the dataset with defined inbounds or transposition domain
+
+    Parameters
+    ----------
+    rfile : Dataset file path ('.nc' file)
+        This is the path to the dataset
+    rainprop : class
+        DESCRIPTION
+    variables : TYPE
+        DESCRIPTION.
+    inbounds : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     infile=xr.open_dataset(rfile)
-    search_string = 'prcp'     #### Used these lines to counter small case letters.
-    variables = list(infile.variables.keys())
-    index = [x.lower() for x in variables].index(search_string.lower())
+    rain_name,lat_name,lon_name = variables.values()
     if np.any(inbounds!=False):
         latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
-        outrain=infile[variables[index]].sel(lat =slice(latmin,latmax),\
-                                                  lon=slice(longmin,longmax))
-        outlatitude=outrain['lat']
-        outlongitude=outrain['lon']        
+        outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
+                                                  **{lon_name:slice(longmin,longmax)})
+        outlatitude=outrain[lat_name]
+        outlongitude=outrain[lon_name]        
     else:
-        outrain=infile[variables[index]]
-        outlatitude=outrain['lat']
-        outlongitude=outrain['lon'] 
+        outrain=infile[rain_name]
+        outlatitude=outrain[lat_name]
+        outlongitude=outrain[lat_name] 
     outtime=np.array(infile['time'],dtype='datetime64[m]')
     infile.close()
     return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
@@ -1259,27 +1277,33 @@ def readnetcdf(rfile,rainprop,inbounds=False):
 #==============================================================================
 # READ RAINFALL FILE FROM NETCDF
 #==============================================================================
-def readcatalog(rfile):
-    infile=Dataset(rfile,'r')
-    if 'rainrate' in infile.variables.keys():
-        oldfile=True
-        print("reading an older-style storm catalog")
-    else:
-        oldfile=False
-    if oldfile:
-        outrain=np.array(infile.variables['rainrate'][:])
-        outlatitude=np.array(infile.variables['latitude'][:])
-        outmask=np.array(infile.variables['gridmask'][:])
-        domainmask=np.array(infile.variables['domainmask'][:])
-    else:
-        outrain=np.array(infile.variables['precrate'][:])[:,:,::-1,:]
-        outlatitude=np.array(infile.variables['latitude'][:])[::-1]
-        outmask=np.array(infile.variables['gridmask'][:])[::-1,:]
-        domainmask=np.array(infile.variables['domainmask'][:])[::-1,:]
-    outtime=np.array(infile.variables['time'][:],dtype='datetime64[m]')
-    outlongitude=np.array(infile.variables['longitude'][:])
-    outlocx, outlocy=np.array(infile.variables['xlocation'][:]) , np.array(infile.variables['ylocation'][:])
-    outmax=np.array(infile.variables['basinrainfall'][:])
+
+def readcatalog(rfile) :
+    """
+    Returns the properties of the storm including spatial range, storm center,
+    storm depth, storm time by reading the already created storm catalogs.
+
+    Parameters
+    ----------
+    rfile : string
+        This takes in the path of the source file.
+
+    Returns
+    -------
+    arrays
+        This returns all the properties of a storm including storm rain array, storm time, storm depth, storm center and the extent of the transpositio domain
+
+    """
+    infile=xr.open_dataset(rfile)
+    outrain=infile['rainrate']
+    outlatitude=infile['latitude']
+    outmask=infile['gridmask']
+    domainmask=infile['domainmask']
+    outtime=np.array(infile['time'],dtype='datetime64[m]')
+    outlongitude=infile['longitude']
+    outlocx=infile['xlocation']
+    outlocy=infile['ylocation']
+    outmax=infile['basinrainfall']
 
     try:
         timeresolution=np.int(infile.timeresolution)
@@ -1292,7 +1316,7 @@ def readcatalog(rfile):
         	return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,timeresolution
     else:
         return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask
-    
+
 def readtimeresolution(rfile):
     infile=Dataset(rfile,'r')
     try:
@@ -1603,11 +1627,11 @@ def createfilelist(inpath, includeyears, excludemonths):
 #==============================================================================
 # Get things set up
 #==============================================================================
-def rainprop_setup(infile,rainprop,catalog=False,lassiterfile=False):
+def rainprop_setup(infile,rainprop,variables,catalog=False):
     if catalog:
         inrain,intime,inlatitude,inlongitude,catx,caty,catmax,_,domainmask=readcatalog(infile)
     else:
-        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,rainprop)
+        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables)
 
     if len(inlatitude.shape)>1 or len(inlongitude.shape)>1:
         sys.exit("RainyDay isn't set up for netcdf files that aren't on a regular lat/lon grid!")

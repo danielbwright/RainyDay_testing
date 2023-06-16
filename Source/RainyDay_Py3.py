@@ -131,21 +131,13 @@ parameterfile='ttt'
 try:
     parameterfile=sys.argv[1]
     print("reading in the parameter file...")
-    ### Cardinfo takes in the  '.sst' file parameters
+    ### Cardinfo takes in the  'JSON' file parameters
     with open(parameterfile, 'r') as read_file:
         cardinfo = json.loads(read_file.read())
 except :
     print("You either didn't specify a parameter file, or it doesn't exist on the source path given.")
 #%%
-#### Changed this part of the code
-# if os.path.isfile(parameterfile)==False:
-#     sys.exit("You either didn't specify a parameter file, or it doesn't exist.")
-# else:
-#     print("reading in the parameter file...")
-#     #### Cardinfo takes in the  '.sst' file parameters
-#     cardinfo=np.loadtxt(parameterfile, comments="#",dtype="str", unpack=False)
-#
-#
+
 # #==============================================================================
 # # USER DEFINED VARIABLES
 # #==============================================================================
@@ -169,6 +161,10 @@ except ImportError:
 #
 #
 # # PROPERTIES RELATED TO SST PROCEDURE:
+try:
+    variables= cardinfo["Variables"]
+except ValueError:
+    sys.exit("Please enter the valid names of the variables and the coordinates in your dataset")
 try:
     catalogname=cardinfo["CATALOGNAME"]
 except Exception:
@@ -884,7 +880,7 @@ if CreateCatalog:
   
     
     # GET SUBDIMENSIONS, ETC. FROM THE NETCDF FILE RATHER THAN FROM RAINPROPERTIES  
-    rainprop.spatialres,rainprop.dimensions,rainprop.bndbox,rainprop.timeres,rainprop.nodata=RainyDay.rainprop_setup(flist[0],rainprop,lassiterfile=islassiter)
+    rainprop.spatialres,rainprop.dimensions,rainprop.bndbox,rainprop.timeres,rainprop.nodata=RainyDay.rainprop_setup(flist[0],rainprop,variables)
     spatres=rainprop.spatialres[0]
     
     
@@ -978,7 +974,7 @@ else:
     sys.exit("Restrictions to certain hours isn't currently tested or supported")
     try:
         sys.exit("need to fix this")
-        _,temptime,_,_=RainyDay.readnetcdf(flist[0],inbounds=inarea,lassiterfile=islassiter)
+        _,temptime,_,_=RainyDay.readnetcdf(flist[0],variables,inarea)
     except Exception:
         sys.exit("Can't find the input files necessary for setup to calculate time-of-day-specific IDF curves")
 
@@ -1164,8 +1160,6 @@ if CreateCatalog:
     raintime[:]=np.datetime64(datetime(1900,1,1,0,0,0))
     
     catmax=np.zeros((nstorms),dtype='float32')
-
-    # catrain=np.zeros((nstorms,int(catduration*60/rainprop.timeres),rainprop.subdimensions[0],rainprop.subdimensions[1]),dtype='float32')
     cattime=np.empty((nstorms,int(catduration*60/rainprop.timeres)),dtype='datetime64[m]')
     cattime[:]=np.datetime64(datetime(1900,1,1,0,0,0))
     catloc=np.empty((nstorms),dtype='float32')
@@ -1184,7 +1178,7 @@ if CreateCatalog:
     start = time.time()
     for i in filerange: 
         infile=flist[i]
-        inrain,intime,_,_=RainyDay.readnetcdf(infile,rainprop,inbounds=inarea)
+        inrain,intime,_,_=RainyDay.readnetcdf(infile,variables,inarea)
         inrain=inrain[hourinclude,:]
         intime=intime[hourinclude]
         inrain[inrain<0.]=np.nan
@@ -1206,12 +1200,8 @@ if CreateCatalog:
                     rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
                 else:
                     rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
-                #if rainmax <= 5:
-                 #   rainmax = 0
                     
                 minind=np.argmin(catmax)
-                
-                # print(minind)
                 tempmin=catmax[minind]
                 if rainmax>tempmin:
                     checksep=intime[k]-cattime[:,-1]
@@ -1222,22 +1212,14 @@ if CreateCatalog:
                             cattime[checkind,:]=subtime
                             catx[checkind]=xcat
                             caty[checkind]=ycat
-                            # catrain[checkind,:]=rainarray
+                            
                             
                         
                     else:
-                        #print(minind)
                         catmax[minind]   =rainmax
                         cattime[minind,:]=subtime
                         catx[minind]     =xcat
                         caty[minind]     =ycat
-                        # catrain[minind,:]=rainarray
-                        #try:
-                        #    storm_num = checkind[0][0] + 1
-                        #    storm_name = 'storm' + str(storm_num) + '.nc'
-                        #    RainyDay.writecatalog_ash(scenarioname,catrain[checkind[0][0],:],catmax[checkind[0][0]]/mnorm*rainprop.timeres/60.,catx[checkind[0][0]],caty[checkind[0][0]],cattime[checkind[0][0],:],latrange,lonrange,storm_name,catmask,parameterfile_json,domainmask,timeresolution=rainprop.timeres)
-                        #except:
-                        #    continue
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
@@ -1246,9 +1228,9 @@ if CreateCatalog:
     cattime=cattime[sind,:]
     catx=catx[sind]
     caty=caty[sind]    
-    # catrain=catrain[sind,:]  
     catmax=catmax[sind]/mnorm*rainprop.timeres/60.
     # This part saves each storm as single file #
+    print("\033[1mWriting Storm Catalog\033[0m")
     for i in range(nstorms):
         start_time = cattime[i,0]
         end_time   = cattime[i,-1]
@@ -1273,7 +1255,7 @@ if CreateCatalog:
                     if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
                         stm_file = file
                         break
-                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,rainprop,inbounds=inarea)
+                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,variables,inbounds=inarea)
             cind = np.where(stm_time == current_datetime)[0][0]
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
@@ -1288,11 +1270,7 @@ if CreateCatalog:
                                                   timeresolution=rainprop.timeres)      
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
-    
-    # WRITE CATALOG
-    print("writing storm catalog...")
-# This part need to be deleted
-    #RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)
+
         
 #%%
 #################################################################################
