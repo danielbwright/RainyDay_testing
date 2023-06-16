@@ -828,42 +828,59 @@ def kernelloop(nlocs,rndloc,flatkern,ncols,tempx,tempy):
 # NOTE THAT subcoord ARE THE COORDINATES OF THE OUTSIDE BORDER OF THE SUBBOX
 # THEREFORE THE DISTANCE FROM THE WESTERN (SOUTHERN) BOUNDARY TO THE EASTERN (NORTHERN) BOUNDARY IS NCOLS (NROWS) +1 TIMES THE EAST-WEST (NORTH-SOUTH) RESOLUTION
 #============================================================================== 
-def findsubbox(inarea,rainprop):
-    outind=np.empty([4],dtype='int')
-    # outextent=np.empty([4])
-    outdim=np.empty([2])
-    res=rainprop.spatialres[0]
-    #inbox=[inarea[0]+res/2.,inarea[1]+res/2.,inarea[2]-res/2.,inarea[3]-res/2.]
+# def findsubbox(inarea,rainprop):
+#     outind=np.empty([4],dtype='int')
+#     # outextent=np.empty([4])
+#     outdim=np.empty([2])
+#     res=rainprop.spatialres[0]
+#     #inbox=[inarea[0]+res/2.,inarea[1]+res/2.,inarea[2]-res/2.,inarea[3]-res/2.]
     
-    # DBW: updated the stuff below on 9/13/22 to accomodate cell-centers rather than upper-left corners. Older files will probably have some issues here...
-    rangex=np.arange(rainprop.bndbox[0],rainprop.bndbox[1]-res/1000,res)
-    rangey=np.arange(rainprop.bndbox[3],rainprop.bndbox[2]+res/1000,-res)
+#     # DBW: updated the stuff below on 9/13/22 to accomodate cell-centers rather than upper-left corners. Older files will probably have some issues here...
+#     rangex=np.arange(rainprop.bndbox[0],rainprop.bndbox[1]-res/1000,res)
+#     rangey=np.arange(rainprop.bndbox[3],rainprop.bndbox[2]+res/1000,-res)
 
-    if rangex.shape[0]<rainprop.dimensions[1]:
-        rangex=np.append(rangex,rangex[-1])
-    if rangey.shape[0]<rainprop.dimensions[0]:
-        rangey=np.append(rangey,rangey[-1])
-    if rangex.shape[0]>rainprop.dimensions[1]:
-        rangex=rangex[0:-1]
-    if rangey.shape[0]>rainprop.dimensions[0]:
-        rangey=rangey[0:-1]
+#     if rangex.shape[0]<rainprop.dimensions[1]:
+#         rangex=np.append(rangex,rangex[-1])
+#     if rangey.shape[0]<rainprop.dimensions[0]:
+#         rangey=np.append(rangey,rangey[-1])
+#     if rangex.shape[0]>rainprop.dimensions[1]:
+#         rangex=rangex[0:-1]
+#     if rangey.shape[0]>rainprop.dimensions[0]:
+#         rangey=rangey[0:-1]
     
-    outextent=inarea
+#     outextent=inarea
     
-    # "SNAP" output extent to grid
-    outind[0]=np.abs((rangex-res/2.)-outextent[0]).argmin()
-    outind[1]=np.abs((rangex+res/2.)-outextent[1]).argmin()-1
-    outind[2]=np.abs((rangey-res/2.)-outextent[2]).argmin()-1
-    outind[3]=np.abs((rangey+res/2.)-outextent[3]).argmin()
-    outextent[0]=rangex[outind[0]]
-    outextent[1]=rangex[outind[1]+1]
-    outextent[2]=rangey[outind[2]+1]
-    outextent[3]=rangey[outind[3]]
+#     # "SNAP" output extent to grid
+#     outind[0]=np.abs((rangex-res/2.)-outextent[0]).argmin()
+#     outind[1]=np.abs((rangex+res/2.)-outextent[1]).argmin()-1
+#     outind[2]=np.abs((rangey-res/2.)-outextent[2]).argmin()-1
+#     outind[3]=np.abs((rangey+res/2.)-outextent[3]).argmin()
+#     outextent[0]=rangex[outind[0]]
+#     outextent[1]=rangex[outind[1]+1]
+#     outextent[2]=rangey[outind[2]+1]
+#     outextent[3]=rangey[outind[3]]
 
-    outdim[1]=np.shape(np.arange(outind[0],outind[1]+1))[0]
-    outdim[0]=np.shape(np.arange(outind[3],outind[2]+1))[0]
-    outdim=np.array(outdim,dtype='int32')
-    return outextent,outind,outdim
+#     outdim[1]=np.shape(np.arange(outind[0],outind[1]+1))[0]
+#     outdim[0]=np.shape(np.arange(outind[3],outind[2]+1))[0]
+#     outdim=np.array(outdim,dtype='int32')
+#     return outextent,outind,outdim
+def findsubbox(inarea,rainprop,flist):
+    outextent = np.empty([4])
+    outdim=np.empty([2], dtype= 'int')
+    infile=xr.open_dataset(flist)
+    search_string = 'prcp'     #### Used these lines to counter small case letters.
+    variables = list(infile.variables.keys())
+    index = [x.lower() for x in variables].index(search_string.lower())
+    latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
+    outrain=infile[variables[index]].sel(lat =slice(latmin,latmax),\
+                                              lon=slice(longmin,longmax))
+    outextent[2], outextent[3],outextent[0], outextent[1]=outrain['lat'][0],outrain['lat'][-1],\
+                                outrain['lon'][0], outrain['lon'][-1]       
+    outdim[0], outdim[1] = len(outrain['lat']), len(outrain['lon'])
+    infile.close()
+    return outextent, outdim, np.array(outrain['lat'])[::-1], np.array(outrain['lon'])
+    
+    
     
 
 #==============================================================================
@@ -1217,94 +1234,76 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 #     infile.close()
 #     return outrain,outtime,outlatitude,outlongitude
 
-def readnetcdf(rfile,inbounds=False,lassiterfile=False):
+
+
+
+def readnetcdf(rfile,variables,inbounds=False):
+    """
+    Used to trim the dataset with defined inbounds or transposition domain
+
+    Parameters
+    ----------
+    rfile : Dataset file path ('.nc' file)
+        This is the path to the dataset
+    rainprop : class
+        DESCRIPTION
+    variables : TYPE
+        DESCRIPTION.
+    inbounds : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     infile=xr.open_dataset(rfile)
-    
-    search_string = 'rainrate'     #### Used these lines to counter small case letters.
-    variables = list(infile.variables.keys())
-    index = [x.lower() for x in variables].index(search_string.lower())
-    if lassiterfile==False:
-        if search_string.lower() in [x.lower() for x in variables]:
-            print("Reading an older-style NetCDF file")
-            oldfile=True
-        else:
-            oldfile=False
-        if np.any(inbounds!=False):
-            if oldfile:
-                outrain=np.array(infile.variables[variables[index]][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-                outlatitude=np.array(infile.variables['latitude'][inbounds[3]:inbounds[2]+1])
-            else:
-                outrain=np.array(infile.variables['precrate'][:,::-1,:][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-                outlatitude=np.array(infile.variables['latitude'][::-1][inbounds[3]:inbounds[2]+1])
-            outlongitude=np.array(infile.variables['longitude'][inbounds[0]:inbounds[1]+1])         
-        else:
-            if oldfile:
-                outrain=np.array(infile.variables[variables[index]])
-                outlatitude=np.array(infile.variables['latitude'])
-            else:
-                outrain=np.array(infile.variables['precrate'][:,::-1,:])
-                outlatitude=np.array(infile.variables['latitude'][::-1])
-            outlongitude=np.array(infile.variables['longitude'][:])
-        outtime=np.array(infile.variables['time'][:],dtype='datetime64[m]')
-    else:       # lassiter time!
-        print("Lassiter  or FitzGerald style!")
-        #for subhourly lassiter files:
-        if np.any(inbounds!=False):
-            outrain=np.array(infile.variables['rainrate'][:,::-1,:][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-            outlatitude=np.array(infile.variables['latitude'][inbounds[3]:inbounds[2]+1])[::-1]
-            outlongitude=np.array(infile.variables['longitude'][:])-360. 
-        else:
-            outrain=np.array(infile.variables['rainrate'][:])[:,::-1,:]
-            outlatitude=np.array(infile.variables['latitude'][:])[::-1]
-            outlongitude=np.array(infile.variables['longitude'][:])-360. 
-    
-        # for hourly lassiter files:
-        #tempdate=rfile.strip('.nc').split('/')[-1]
-        #startdate=np.datetime64(tempdate[0:4]+'-'+tempdate[4:6]+'-'+tempdate[6:8]+'T00:00')
-        #outtime=startdate+np.array(infile.variables['time'][:],dtype='timedelta64[s]')
-        
-        # for hourly FitzGerald files:
-        tempdate=rfile.strip('.nc').split('/')[-1][-8:]
-        startdate=np.datetime64(tempdate[0:4]+'-'+tempdate[4:6]+'-'+tempdate[6:8]+'T00:00')
-        outtime=startdate+np.array(infile.variables['time'][:],dtype='timedelta64[m]')
-        
-        #if np.any(inbounds!=False):
-         #   outrain=np.array(infile.variables['precrate'][::-1][:,inbounds[3]:inbounds[2]+1,inbounds[0]:inbounds[1]+1])
-        #    outlatitude=np.array(infile.variables['latitude'][::-1][inbounds[3]:inbounds[2]+1])
-        #    outlongitude=np.array(infile.variables['longitude'][inbounds[3]:inbounds[2]+1])
-        #else:
-         #   outrain=np.array(infile.variables['precrate'][:,::-1,:])
-        #    outlatitude=np.array(infile.variables['latitude'][::-1])
-        #    outlongitude=np.array(infile.variables['longitude'][:])
-            
+    rain_name,lat_name,lon_name = variables.values()
+    if np.any(inbounds!=False):
+        latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
+        outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
+                                                  **{lon_name:slice(longmin,longmax)})
+        outlatitude=outrain[lat_name]
+        outlongitude=outrain[lon_name]        
+    else:
+        outrain=infile[rain_name]
+        outlatitude=outrain[lat_name]
+        outlongitude=outrain[lat_name] 
+    outtime=np.array(infile['time'],dtype='datetime64[m]')
     infile.close()
-    return outrain,outtime,outlatitude,outlongitude
-    
-    
+    return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
+  
 #==============================================================================
 # READ RAINFALL FILE FROM NETCDF
 #==============================================================================
-def readcatalog(rfile):
-    infile=Dataset(rfile,'r')
-    if 'rainrate' in infile.variables.keys():
-        oldfile=True
-        print("reading an older-style storm catalog")
-    else:
-        oldfile=False
-    if oldfile:
-        outrain=np.array(infile.variables['rainrate'][:])
-        outlatitude=np.array(infile.variables['latitude'][:])
-        outmask=np.array(infile.variables['gridmask'][:])
-        domainmask=np.array(infile.variables['domainmask'][:])
-    else:
-        outrain=np.array(infile.variables['precrate'][:])[:,:,::-1,:]
-        outlatitude=np.array(infile.variables['latitude'][:])[::-1]
-        outmask=np.array(infile.variables['gridmask'][:])[::-1,:]
-        domainmask=np.array(infile.variables['domainmask'][:])[::-1,:]
-    outtime=np.array(infile.variables['time'][:],dtype='datetime64[m]')
-    outlongitude=np.array(infile.variables['longitude'][:])
-    outlocx, outlocy=np.array(infile.variables['xlocation'][:]) , np.array(infile.variables['ylocation'][:])
-    outmax=np.array(infile.variables['basinrainfall'][:])
+
+def readcatalog(rfile) :
+    """
+    Returns the properties of the storm including spatial range, storm center,
+    storm depth, storm time by reading the already created storm catalogs.
+
+    Parameters
+    ----------
+    rfile : string
+        This takes in the path of the source file.
+
+    Returns
+    -------
+    arrays
+        This returns all the properties of a storm including storm rain array, storm time, storm depth, storm center and the extent of the transpositio domain
+
+    """
+    infile=xr.open_dataset(rfile)
+    outrain=infile['rainrate']
+    outlatitude=infile['latitude']
+    outmask=infile['gridmask']
+    domainmask=infile['domainmask']
+    outtime=np.array(infile['time'],dtype='datetime64[m]')
+    outlongitude=infile['longitude']
+    outlocx=infile['xlocation']
+    outlocy=infile['ylocation']
+    outmax=infile['basinrainfall']
 
     try:
         timeresolution=np.int(infile.timeresolution)
@@ -1317,7 +1316,7 @@ def readcatalog(rfile):
         	return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,timeresolution
     else:
         return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask
-    
+
 def readtimeresolution(rfile):
     infile=Dataset(rfile,'r')
     try:
@@ -1628,11 +1627,11 @@ def createfilelist(inpath, includeyears, excludemonths):
 #==============================================================================
 # Get things set up
 #==============================================================================
-def rainprop_setup(infile,catalog=False,lassiterfile=False):
+def rainprop_setup(infile,rainprop,variables,catalog=False):
     if catalog:
         inrain,intime,inlatitude,inlongitude,catx,caty,catmax,_,domainmask=readcatalog(infile)
     else:
-        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,lassiterfile=lassiterfile)
+        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables)
 
     if len(inlatitude.shape)>1 or len(inlongitude.shape)>1:
         sys.exit("RainyDay isn't set up for netcdf files that aren't on a regular lat/lon grid!")
