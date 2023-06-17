@@ -889,7 +889,7 @@ if CreateCatalog:
     #==============================================================================
     # 'subgrid' defines the transposition domain
  
-    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,rainprop,flist[0])
+    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,variables,flist[0])
     if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
@@ -1195,31 +1195,30 @@ if CreateCatalog:
             subtime=np.arange(raintime[-1],starttime,-timestep)[::-1]
             temparray=np.squeeze(np.nansum(rainarray[subtimeind,:],axis=1))
             
-            if np.any(np.greater(temparray,np.min(catmax))): # DBW-added this if statement on 10112022. It seems like this should speed things up!
-                if domain_type=='irregular':
-                    rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
-                else:
-                    rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
-                    
-                minind=np.argmin(catmax)
-                tempmin=catmax[minind]
-                if rainmax>tempmin:
-                    checksep=intime[k]-cattime[:,-1]
-                    if (checksep<timeseparation).any():
-                        checkind=np.where(checksep<timeseparation)
-                        if rainmax>=catmax[checkind]:
-                            catmax[checkind]=rainmax
-                            cattime[checkind,:]=subtime
-                            catx[checkind]=xcat
-                            caty[checkind]=ycat
-                            
-                            
+            if domain_type=='irregular':
+                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
+            else:
+                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
+                
+            minind=np.argmin(catmax)
+            tempmin=catmax[minind]
+            if rainmax>tempmin:
+                checksep=intime[k]-cattime[:,-1]
+                if (checksep<timeseparation).any():
+                    checkind=np.where(checksep<timeseparation)
+                    if rainmax>=catmax[checkind]:
+                        catmax[checkind]=rainmax
+                        cattime[checkind,:]=subtime
+                        catx[checkind]=xcat
+                        caty[checkind]=ycat
                         
-                    else:
-                        catmax[minind]   =rainmax
-                        cattime[minind,:]=subtime
-                        catx[minind]     =xcat
-                        caty[minind]     =ycat
+                        
+                    
+                else:
+                    catmax[minind]   =rainmax
+                    cattime[minind,:]=subtime
+                    catx[minind]     =xcat
+                    caty[minind]     =ycat
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
