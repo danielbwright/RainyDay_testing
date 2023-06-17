@@ -11,13 +11,14 @@ import os
 import xarray as xr
 import numpy as np
 import sys
+import glob
 
 # Specify the path to the zip file
-storm_path = '/Volumes/TheCordex/Madison_Data/'
+storm_path = glob.glob(sys.argv[1])
 storm_yr = np.array([])
-storms = int(sys.argv[1])
-for i in range(storms):
-    storm = xr.open_dataset(storm_path + 'Storm'+str(i+1)+'.nc')
+storms = int(sys.argv[2])
+for storm in storm_path:
+    storm = xr.open_dataset(storm)
     start_time = int(storm.time[0].dt.year)
     storm_yr = np.append(storm_yr, start_time)
 
