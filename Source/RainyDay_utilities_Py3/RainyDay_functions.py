@@ -1291,7 +1291,7 @@ def readcatalog(rfile) :
 
     """
     infile=xr.open_dataset(rfile)
-    outrain=infile['rainrate']
+    outrain=infile['rain']
     outlatitude=infile['latitude']
     outmask=infile['gridmask']
     domainmask=infile['domainmask']
@@ -1372,7 +1372,7 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
 
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay Storm Catalog for scenario ' + scenarioname + '. See description for JSON file contents.'
-    data_vars = dict(precrate = (("time","latitude", "longitude",),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
+    data_vars = dict(rain = (("time","latitude", "longitude",),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
                      basinrainfall = ((),catmax,{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
                      xlocation = ((),catx,{'units': 'dimensionless', 'long_name': xlocation_name}),
                      ylocation = ((),caty,{'units': 'dimensionless', 'long_name': ylocation_name}),

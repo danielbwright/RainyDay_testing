@@ -179,7 +179,8 @@ if CreateCatalog.lower()=='true':
     CreateCatalog=True
 else:
     CreateCatalog=False
-    if os.path.isfile(catalogname + str(1))==False:
+    catalogname = catalogname + str(1) + '.nc'
+    if os.path.isfile(catalogname)==False:
         sys.exit("You need to create a storm catalog first.")
     else:
         print("Reading an existing storm catalog!")
@@ -188,8 +189,6 @@ else:
         except ValueError:
             catrain,cattime,latrange,lonrange,catx,caty,catmax,_,domainmask=RainyDay.readcatalog(catalogname)
             timeres=RainyDay.readtimeresolution(catalogname)
-        #if catrain.shape[1]==1:
-        #    timeres=RainyDay.readtimeresolution(catalogname)
         yres=np.abs(np.mean(latrange[1:]-latrange[0:-1]))
         xres=np.abs(np.mean(lonrange[1:]-lonrange[0:-1]))
         catarea=[lonrange[0],lonrange[-1]+xres,latrange[-1]-yres,latrange[0]]
