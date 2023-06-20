@@ -864,19 +864,21 @@ def kernelloop(nlocs,rndloc,flatkern,ncols,tempx,tempy):
 #     outdim[0]=np.shape(np.arange(outind[3],outind[2]+1))[0]
 #     outdim=np.array(outdim,dtype='int32')
 #     return outextent,outind,outdim
-def findsubbox(inarea,variables,flist):
+def findsubbox(inarea,rainprop,flist):
     outextent = np.empty([4])
     outdim=np.empty([2], dtype= 'int')
     infile=xr.open_dataset(flist)
-    rain_name,lat_name,lon_name = variables.values()
+    search_string = 'prcp'     #### Used these lines to counter small case letters.
+    variables = list(infile.variables.keys())
+    index = [x.lower() for x in variables].index(search_string.lower())
     latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
-    outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
-                                              **{lon_name:slice(longmin,longmax)})
-    outextent[2], outextent[3],outextent[0], outextent[1]=outrain[lat_name][0],outrain[lat_name][-1],\
-                                outrain[lon_name][0], outrain[lon_name][-1]       
-    outdim[0], outdim[1] = len(outrain[lat_name]), len(outrain[lon_name])
+    outrain=infile[variables[index]].sel(lat =slice(latmin,latmax),\
+                                              lon=slice(longmin,longmax))
+    outextent[2], outextent[3],outextent[0], outextent[1]=outrain['lat'][0],outrain['lat'][-1],\
+                                outrain['lon'][0], outrain['lon'][-1]       
+    outdim[0], outdim[1] = len(outrain['lat']), len(outrain['lon'])
     infile.close()
-    return outextent, outdim, np.array(outrain[lat_name])[::-1], np.array(outrain[lon_name])
+    return outextent, outdim, np.array(outrain['lat'])[::-1], np.array(outrain['lon'])
     
     
     
@@ -1243,8 +1245,6 @@ def readnetcdf(rfile,variables,inbounds=False):
     ----------
     rfile : Dataset file path ('.nc' file)
         This is the path to the dataset
-    rainprop : class
-        DESCRIPTION
     variables : TYPE
         DESCRIPTION.
     inbounds : TYPE, optional

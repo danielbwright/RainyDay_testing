@@ -168,13 +168,8 @@ except ValueError:
 try:
     catalogname=cardinfo["CATALOGNAME"]
 except Exception:
-    catalogname='SSTstormcatalog.nc'
-if catalogname.find('/')==-1:
-    catalogname=wd+'/'+catalogname     ### This doesn't looks good to me. We can avaoid this "if" and jsut add the path.
+    catalogname='SSTstorm_'
 
-if len(catalogname.split('.nc'))==1:
-    sys.exit("You didn't specify the '.nc' extension on the storm catalog name!")
-#
 try:
     CreateCatalog=cardinfo["CREATECATALOG"]
 except Exception:
@@ -184,7 +179,7 @@ if CreateCatalog.lower()=='true':
     CreateCatalog=True
 else:
     CreateCatalog=False
-    if os.path.isfile(catalogname)==False:
+    if os.path.isfile(catalogname + str(1))==False:
         sys.exit("You need to create a storm catalog first.")
     else:
         print("Reading an existing storm catalog!")
@@ -1211,9 +1206,7 @@ if CreateCatalog:
                         cattime[checkind,:]=subtime
                         catx[checkind]=xcat
                         caty[checkind]=ycat
-                        
-                        
-                    
+
                 else:
                     catmax[minind]   =rainmax
                     cattime[minind,:]=subtime
@@ -1259,7 +1252,7 @@ if CreateCatalog:
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
             k += 1
-        storm_name = "Storm" + str(i+1) +".nc"
+        storm_name = catalogname + str(i+1) +".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         RainyDay.writecatalog_ash(scenarioname,catrain,\
                                   catmax[i],\
