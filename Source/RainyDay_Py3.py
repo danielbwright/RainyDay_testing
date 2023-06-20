@@ -889,7 +889,7 @@ if CreateCatalog:
     #==============================================================================
     # 'subgrid' defines the transposition domain
  
-    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,rainprop,flist[0])
+    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,variables,flist[0])
     if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
