@@ -1294,12 +1294,13 @@ def readcatalog(rfile) :
     outrain=infile['rain']
     outlatitude=infile['latitude']
     outmask=infile['gridmask']
-    domainmask=infile['domainmask']
-    outtime=np.array(infile['time'],dtype='datetime64[m]')
+    domainmask=np.array(infile['domainmask'])
+    stormtime=np.array(infile['time'],dtype='datetime64[m]')
     outlongitude=infile['longitude']
-    outlocx=infile['xlocation']
-    outlocy=infile['ylocation']
+    outlocx=np.array(infile['xlocation'])
+    outlocy=np.array(infile['ylocation'])
     outmax=infile['basinrainfall']
+    cattime = np.array(infile['cattime'],dtype='datetime64[m]')
 
     try:
         timeresolution=np.int(infile.timeresolution)
@@ -1309,9 +1310,9 @@ def readcatalog(rfile) :
     infile.close()
     
     if resexists:
-        	return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,timeresolution
+        	return outrain,stormtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,cattime,timeresolution
     else:
-        return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask
+        return outrain,stormtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,cattime
 
 def readtimeresolution(rfile):
     infile=Dataset(rfile,'r')
@@ -1349,7 +1350,7 @@ def readcatalog_LEGACY(rfile):
 
 #RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)   
 def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrange, lonrange, catalogname, gridmask,
-                 parameterfile, dmask, timeresolution=False):
+                 parameterfile, dmask, nstorms, duration,storm_num,timeresolution=False):
 
     with open(parameterfile,'r') as f:
         params = json.loads(f.read())
@@ -1372,16 +1373,18 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
 
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay Storm Catalog for scenario ' + scenarioname + '. See description for JSON file contents.'
-    data_vars = dict(rain = (("time","latitude", "longitude",),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
-                     basinrainfall = ((),catmax,{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
-                     xlocation = ((),catx,{'units': 'dimensionless', 'long_name': xlocation_name}),
-                     ylocation = ((),caty,{'units': 'dimensionless', 'long_name': ylocation_name}),
+    data_vars = dict(rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
+                     basinrainfall = (("catmax"),catmax.reshape(nstorms),{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
+                     xlocation = (("xloc"),catx.reshape(nstorms),{'units': 'dimensionless', 'long_name': xlocation_name}),
+                     ylocation = (("yloc"),caty.reshape(nstorms),{'units': 'dimensionless', 'long_name': ylocation_name}),
+                     cattime = (("stormtime","duration"), cattime),
                      gridmask= (("latitude", "longitude"), gridmask[::-1, :],{'units': 'dimensionless', 'long_name': gmask_name}),
                      domainmask = (("latitude", "longitude"),dmask[::-1, :],{'units': 'dimensionless', 'long_name': domainmask_name}),
                      timeresolution = ((), timeresolution) )
-    coords = dict(time = ((times_name),cattime),
+    coords = dict(time = ((times_name),cattime[storm_num,:]),
                   longitude = (("longitude"), lonrange, {'units': longitudes_units, 'long_name': longitudes_name}),
-                  latitude =  (("latitude"), latrange[::-1], {'units': latitudes_units, 'long_name': latitudes_name}))
+                  latitude =  (("latitude"), latrange[::-1], {'units': latitudes_units, 'long_name': latitudes_name}),
+                  )
 
 
     attrs  = dict(history =history, source =  source, missing = missing, description = str(params),  calendar = times_calendar)
@@ -1633,8 +1636,8 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
         sys.exit("RainyDay isn't set up for netcdf files that aren't on a regular lat/lon grid!")
         #inlatitude=inlatitude[:,0]          # perhaps would be safer to have an error here...
         #inlongitude=inlongitude[0,:]        # perhaps would be safer to have an error here...
-    yres=np.abs(np.mean(np.subtract(inlatitude[0:-1],inlatitude[1:])))
-    xres=np.abs(np.mean(np.subtract(inlongitude[1:],inlongitude[0:-1])))
+    yres=np.abs((inlatitude[1:] - inlatitude[:-1])).mean()
+    xres=np.abs((inlongitude[1:] - inlongitude[:-1])).mean()
     if np.isclose(xres,yres)==False:
         sys.exit("Rainfall grid isn't square. RainyDay cannot support that.")
 
