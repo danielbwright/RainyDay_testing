@@ -1340,7 +1340,7 @@ else:
 # find the max rainfall for the N-hour duration, not the M-day duration
 #==============================================================================
 
-# durationcheck=60./rainprop.timeres*duration==np.float(catrain.shape[1])
+durationcheck=60./rainprop.timeres*duration==np.float(catrain.shape[0])
 
 # # if (durationcheck==False and durcorrection==True) or (durationcheck==False and DoDiagnostics): 
 # if (durationcheck==False and durcorrection==False): 
@@ -1995,9 +1995,51 @@ if FreqAnalysis:
    
     # here is the main resampling and transposition loop
     for i in np.arange(0,nstorms):
-        print('Resampling and transposing storm '+str(i+1)+' out of '+str(nstorms)+' ('"{0:0.0f}".format(100*(i+1)/nstorms)+'%)')
         catrain,_,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
         catrain = np.array(catrain)
+        if (durationcheck==False and durcorrection==False): 
+            print("checking storm catalog duration, and adjusting if needed...")
+            
+            # if you are using a catalog that is longer in duration than your desired analysis, this happens:
+            print("Storm catalog duration is longer than the specified duration, finding max precipitation periods for specified duration...")
+
+            # the first run through trims the storm catalog duration to the desired duration, for diagnostic purposes if needed...       
+            dur_x=0
+            dur_y=0
+            dur_j=0
+            rainsum=np.zeros((rainprop.subdimensions[0]-maskheight+1,rainprop.subdimensions[1]-maskwidth+1),dtype='float32')
+
+            # I think the following commented block was wrong, but haven't fully tested the change-DBW 1/24/2020
+        #        if durcorrection:
+        #            catmax_subdur=np.zeros_like(catmax)
+        #            catx_subdur=np.zeros_like(catx)
+        #            caty_subdur=np.zeros_like(caty)
+        #            cattime_subdur=cattime
+
+            temptime=np.empty((nstorms,int(duration*60/rainprop.timeres)),dtype='datetime64[m]')
+                #if (100*((i+1)%(nstorms//10)))==0:
+            print('adjusting duration of storms, '+"{0:0.0f}".format(100*(i+1)/nstorms)+'% complete...')
+            dur_max=0.
+            for j in range(0,catrain.shape[0]-int(duration*60/rainprop.timeres)):
+                maxpass=np.nansum(catrain[j:j+int(duration*60./rainprop.timeres),:],axis=0)
+                
+                if domain_type.lower()=='irregular':
+                    maxtemp,tempy,tempx=RainyDay.catalogNumba_irregular(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)   
+                else:
+                    maxtemp,tempy,tempx=RainyDay.catalogNumba(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)                       
+     
+                if maxtemp>dur_max:
+                    dur_max=maxtemp
+                    dur_x=tempx
+                    dur_y=tempy
+                    dur_j=j
+
+            catmax[i]=dur_max
+            catx[i]=dur_x
+            caty[i]=dur_y  
+            catrain=catrain[dur_j:dur_j+int(duration*60./rainprop.timeres),:]
+            cattime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
+        print('Resampling and transposing storm '+str(i+1)+' out of '+str(nstorms)+' ('"{0:0.0f}".format(100*(i+1)/nstorms)+'%)')
         # UNIFORM RESAMPLING
         if transpotype=='uniform' and domain_type=='rectangular':
             whichx[whichstorms==i,0]=np.random.randint(0,np.int(rainprop.subdimensions[1])-maskwidth+1,len(whichx[whichstorms==i]))
