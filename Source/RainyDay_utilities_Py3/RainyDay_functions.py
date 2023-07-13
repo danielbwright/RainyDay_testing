@@ -829,34 +829,7 @@ def kernelloop(nlocs,rndloc,flatkern,ncols,tempx,tempy):
 # THEREFORE THE DISTANCE FROM THE WESTERN (SOUTHERN) BOUNDARY TO THE EASTERN (NORTHERN) BOUNDARY IS NCOLS (NROWS) +1 TIMES THE EAST-WEST (NORTH-SOUTH) RESOLUTION
 #============================================================================== 
 
-<<<<<<< HEAD
-#     if rangex.shape[0]<rainprop.dimensions[1]:
-#         rangex=np.append(rangex,rangex[-1])
-#     if rangey.shape[0]<rainprop.dimensions[0]:
-#         rangey=np.append(rangey,rangey[-1])
-#     if rangex.shape[0]>rainprop.dimensions[1]:
-#         rangex=rangex[0:-1]
-#     if rangey.shape[0]>rainprop.dimensions[0]:
-#         rangey=rangey[0:-1]
-    
-#     outextent=inarea
-    
-#     # "SNAP" output extent to grid
-#     outind[0]=np.abs((rangex-res/2.)-outextent[0]).argmin()
-#     outind[1]=np.abs((rangex+res/2.)-outextent[1]).argmin()-1
-#     outind[2]=np.abs((rangey-res/2.)-outextent[2]).argmin()-1
-#     outind[3]=np.abs((rangey+res/2.)-outextent[3]).argmin()
-#     outextent[0]=rangex[outind[0]]
-#     outextent[1]=rangex[outind[1]+1]
-#     outextent[2]=rangey[outind[2]+1]
-#     outextent[3]=rangey[outind[3]]
 
-#     outdim[1]=np.shape(np.arange(outind[0],outind[1]+1))[0]
-#     outdim[0]=np.shape(np.arange(outind[3],outind[2]+1))[0]
-#     outdim=np.array(outdim,dtype='int32')
-#     return outextent,outind,outdim
-=======
->>>>>>> readnetcdf
 def findsubbox(inarea,variables,flist):
     outextent = np.empty([4])
     outdim=np.empty([2], dtype= 'int')
@@ -1162,10 +1135,6 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 #==============================================================================
 # READ RAINFALL FILE FROM NETCDF (ONLY FOR RAINYDAY NETCDF-FORMATTED DAILY FILES!
 #==============================================================================
-<<<<<<< HEAD
-=======
-
->>>>>>> readnetcdf
 
 def readnetcdf(rfile,variables,inbounds=False):
     """
@@ -1224,11 +1193,8 @@ def readcatalog(rfile) :
 
     """
     infile=xr.open_dataset(rfile)
-<<<<<<< HEAD
-    outrain=infile['rainarray']
-=======
+
     outrain=infile['rain']
->>>>>>> readnetcdf
     outlatitude=infile['latitude']
     outmask=infile['gridmask']
     domainmask=np.array(infile['domainmask'])
@@ -1310,18 +1276,13 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
 
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay Storm Catalog for scenario ' + scenarioname + '. See description for JSON file contents.'
-<<<<<<< HEAD
-    data_vars = dict(rainarray = (("time","latitude", "longitude",),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
-                     basinrainfall = ((),catmax,{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
-                     xlocation = ((),catx,{'units': 'dimensionless', 'long_name': xlocation_name}),
-                     ylocation = ((),caty,{'units': 'dimensionless', 'long_name': ylocation_name}),
-=======
+
+
     data_vars = dict(rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
                      basinrainfall = (("catmax"),catmax.reshape(nstorms),{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
                      xlocation = (("xloc"),catx.reshape(nstorms),{'units': 'dimensionless', 'long_name': xlocation_name}),
                      ylocation = (("yloc"),caty.reshape(nstorms),{'units': 'dimensionless', 'long_name': ylocation_name}),
                      cattime = (("stormtime","duration"), cattime),
->>>>>>> readnetcdf
                      gridmask= (("latitude", "longitude"), gridmask[::-1, :],{'units': 'dimensionless', 'long_name': gmask_name}),
                      domainmask = (("latitude", "longitude"),dmask[::-1, :],{'units': 'dimensionless', 'long_name': domainmask_name}),
                      timeresolution = ((), timeresolution) )
