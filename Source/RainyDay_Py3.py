@@ -168,13 +168,8 @@ except ValueError:
 try:
     catalogname=cardinfo["CATALOGNAME"]
 except Exception:
-    catalogname='SSTstormcatalog.nc'
-if catalogname.find('/')==-1:
-    catalogname=wd+'/'+catalogname     ### This doesn't looks good to me. We can avaoid this "if" and jsut add the path.
+    catalogname='SSTstorm_'
 
-if len(catalogname.split('.nc'))==1:
-    sys.exit("You didn't specify the '.nc' extension on the storm catalog name!")
-#
 try:
     CreateCatalog=cardinfo["CREATECATALOG"]
 except Exception:
@@ -184,19 +179,14 @@ if CreateCatalog.lower()=='true':
     CreateCatalog=True
 else:
     CreateCatalog=False
-    if os.path.isfile(catalogname)==False:
+    stormlist = glob.glob(catalogname + '*' + '.nc')
+    if os.path.isfile(stormlist[0])==False:
         sys.exit("You need to create a storm catalog first.")
     else:
         print("Reading an existing storm catalog!")
-        try:
-            catrain,cattime,latrange,lonrange,catx,caty,catmax,_,domainmask,timeres=RainyDay.readcatalog(catalogname)
-        except ValueError:
-            catrain,cattime,latrange,lonrange,catx,caty,catmax,_,domainmask=RainyDay.readcatalog(catalogname)
-            timeres=RainyDay.readtimeresolution(catalogname)
-        #if catrain.shape[1]==1:
-        #    timeres=RainyDay.readtimeresolution(catalogname)
-        yres=np.abs(np.mean(latrange[1:]-latrange[0:-1]))
-        xres=np.abs(np.mean(lonrange[1:]-lonrange[0:-1]))
+        catrain,stormtime,latrange,lonrange,catx,caty,catmax,catmask,domainmask,cattime,timeres=RainyDay.readcatalog(stormlist[0])
+        yres=np.abs((np.array(latrange)[1:] - np.array(latrange)[:-1])).mean()
+        xres=np.abs((np.array(lonrange)[1:] - np.array(lonrange)[:-1])).mean()
         catarea=[lonrange[0],lonrange[-1]+xres,latrange[-1]-yres,latrange[0]]
         if np.isclose(xres,yres)==False:
             sys.exit('Sadly, RainyDay currently only supports equal x and y resolutions.')
@@ -528,7 +518,7 @@ except Exception:
 try:
     includeyr=cardinfo["INCLUDEYEARS"]
     if includeyr.lower()!="all":
-        includeyear = includeyr
+        includeyears = includeyr
     else:
         includeyears=False
 except Exception:
@@ -890,7 +880,11 @@ if CreateCatalog:
     # 'subgrid' defines the transposition domain
  
     rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,variables,flist[0])
+<<<<<<< HEAD
     if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):
+=======
+    if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):  ## we should remove it
+>>>>>>> readnetcdf
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
 
@@ -903,27 +897,15 @@ else:
     print("Using the existing storm catalog...")
 
     rainprop.spatialres=[xres,yres]
-    if len(cattime[-1,1:])!=0:
-        rainprop.timeres=np.float32(np.mean(cattime[-1,1:]-cattime[-1,0:-1]))
-    else:  
-        rainprop.timeres=timeres
-    
-    rainprop.nodata=np.unique(catrain[catrain<0.])
-    
-    delt=np.timedelta64(cattime[0,-1]-(cattime[0,0]))
+    rainprop.timeres=timeres
+    no_data = np.unique(catrain.where(catrain < 0, drop = True))
+    rainprop.nodata= no_data[~np.isnan(no_data)]
+    delt=np.timedelta64(stormtime[-1]-(stormtime[0]))
     catduration=(delt.astype('int')+rainprop.timeres)/60.
-    if defaultstorms==False:
-        if nstorms>cattime.shape[0]:
-            print("WARNING: The storm catalog has fewer storms than the specified nstorms")
-            nstorms=cattime.shape[0] 
-    else:
-        darr=np.array(pd.to_datetime(cattime.ravel()).year)
-        nstorms_default=(np.max(darr)-np.min(darr)+1)*25
-        if nstorms_default>cattime.shape[0]:
-            print("WARNING: The storm catalog has fewer storms than the default number of storms")
-            nstorms=cattime.shape[0] 
-        else:
-            nstorms=nstorms_default
+    stm_num = len(stormlist)
+    if nstorms>stm_num:
+        print("WARNING: The storm catalog has fewer storms than the specified nstorms")
+        nstorms=stm_num 
         
         
     if ncfdom and (np.any(domainmask.shape!=catrain.shape[2:])):
@@ -932,15 +914,7 @@ else:
     rainprop.bndbox=catarea
     rainprop.subextent=rainprop.bndbox
     
-    #rainprop.subextent,rainprop.subind,rainprop.subdimensions=RainyDay.findsubbox(inarea,rainprop)
-        
-    rainprop.subind=np.array([0,len(lonrange)-1,len(latrange)-1,0],dtype='int32')
     rainprop.dimensions=np.array([len(latrange),len(lonrange)],dtype='int32') 
-    
-    #catrain=catrain[:,:,rainprop.subind[3]:rainprop.subind[2]+1,rainprop.subind[0]:rainprop.subind[1]+1]
-    #latrange=latrange[rainprop.subind[0]:rainprop.subind[1]+1]
-    #lonrange=lonrange[rainprop.subind[3]:rainprop.subind[2]+1]
-    
     rainprop.subdimensions=rainprop.dimensions
 
 if int(duration*60/rainprop.timeres)<=0:
@@ -957,17 +931,16 @@ elif durcorrection:
 spatres=rainprop.spatialres[0]
 # ingridx,ingridy=np.meshgrid(np.arange(rainprop.subextent[0],rainprop.subextent[1]-spatres/1000.,spatres),np.arange(rainprop.subextent[3],rainprop.subextent[2]+spatres/1000.,-spatres)) 
 ingridx,ingridy=np.meshgrid(lonrange,latrange)        
-# lonrange=ingridx[0,:]
-# latrange=ingridy[:,0]
+
 
 #============================================================================
 # Do the setup to run for specific times of day!
 #=============================================================================
 
-if CreateCatalog==False:
-    tdates = pd.DatetimeIndex(cattime[:,0])
-    tdates.year
-    nyears=np.max(np.array(tdates.year))-np.min(np.array(tdates.year))+1
+# if CreateCatalog==False:
+#     tdates = pd.DatetimeIndex(cattime[:,0])
+#     tdates.year
+#     nyears=np.max(np.array(tdates.year))-np.min(np.array(tdates.year))+1
 if starthour==0 and endhour==24:
     hourinclude=np.ones((int(24*60/rainprop.timeres)),dtype='int32')
 else:
@@ -998,50 +971,16 @@ hourinclude=hourinclude.astype('bool')
 #==============================================================================
 # SET UP GRID MASK
 #==============================================================================
-
-print("setting up the grid information and masks...")
-if areatype.lower()=="basin" or areatype.lower()=="watershed":
-    if os.path.isfile(wsmaskshp)==False:
-        sys.exit("can't find the basin shapefile!")
-    else:
-        catmask=RainyDay.rastermask(wsmaskshp,rainprop,'fraction')
-        #catmask=catmask.reshape(ingridx.shape,order='F')
-
-elif areatype.lower()=="point":
-    catmask=np.zeros((rainprop.subdimensions))
-    yind=np.where((latrange-ptlat)>0)[0][-1]
-    xind=np.where((ptlon-lonrange)>0)[0][-1]  
-    if xind==0 or yind==0:
-        sys.exit('the point you defined is too close to the edge of the box you defined!')
-    else:
-        catmask[yind,xind]=1.0
-        
-elif areatype.lower()=="pointlist":
-    catmask=np.zeros((rainprop.subdimensions))
-    yind_list=np.zeros_like(ptlatlist,dtype='int32')
-    xind_list=np.zeros_like(ptlatlist,dtype='int32')
-    for pt in np.arange(0,npoints_list):
-        yind_list[pt]=np.where((latrange-ptlatlist[pt])>0)[0][-1]
-        xind_list[pt]=np.where((ptlonlist[pt]-lonrange)>0)[0][-1]  
-    if np.any(yind_list==0) or np.any(xind_list==0):
-        sys.exit('the point you defined is too close to the edge of the box you defined!')
-    else:
-        catmask[yind_list[1],xind_list[1]]=1.0          # the idea of the catmask gets a little goofy in this situation
-
-elif areatype.lower()=="box":
-    finelat=np.arange(latrange[0],latrange[-1]-rainprop.spatialres[1]+rainprop.spatialres[0]/1000,-rainprop.spatialres[1]/25)
-    finelon=np.arange(lonrange[0],lonrange[-1]+rainprop.spatialres[0]-rainprop.spatialres[0]/1000,rainprop.spatialres[0]/25)
-
-    subindy=np.logical_and(finelat>boxarea[2]+rainprop.spatialres[1]/1000,finelat<boxarea[3]+rainprop.spatialres[1]/1000)
-    subindx=np.logical_and(finelon>boxarea[0]-rainprop.spatialres[0]/1000,finelon<boxarea[1]-rainprop.spatialres[0]/1000)
+if CreateCatalog:
+    print("setting up the grid information and masks...")
+    if areatype.lower()=="basin" or areatype.lower()=="watershed":
+        if os.path.isfile(wsmaskshp)==False:
+            sys.exit("can't find the basin shapefile!")
+        else:
+            catmask=RainyDay.rastermask(wsmaskshp,rainprop,'fraction')
+            #catmask=catmask.reshape(ingridx.shape,order='F')
     
-    tx,ty=np.meshgrid(subindx,subindy)
-    catmask=np.array(np.logical_and(tx==True,ty==True),dtype='float32')
-    
-    if len(finelat[subindy])<25 and len(finelon[subindx])<25:    
-        print('WARNING: you set POINTAREA to "box", but the box is smaller than a single pixel.  This is not advised.  Either set POINTAREA to "point" or increase the size of the box.')
-    
-    if len(finelat[subindy])==1 and len(finelon[subindx])==1:
+    elif areatype.lower()=="point":
         catmask=np.zeros((rainprop.subdimensions))
         yind=np.where((latrange-ptlat)>0)[0][-1]
         xind=np.where((ptlon-lonrange)>0)[0][-1]  
@@ -1049,19 +988,53 @@ elif areatype.lower()=="box":
             sys.exit('the point you defined is too close to the edge of the box you defined!')
         else:
             catmask[yind,xind]=1.0
+            
+    elif areatype.lower()=="pointlist":
+        catmask=np.zeros((rainprop.subdimensions))
+        yind_list=np.zeros_like(ptlatlist,dtype='int32')
+        xind_list=np.zeros_like(ptlatlist,dtype='int32')
+        for pt in np.arange(0,npoints_list):
+            yind_list[pt]=np.where((latrange-ptlatlist[pt])>0)[0][-1]
+            xind_list[pt]=np.where((ptlonlist[pt]-lonrange)>0)[0][-1]  
+        if np.any(yind_list==0) or np.any(xind_list==0):
+            sys.exit('the point you defined is too close to the edge of the box you defined!')
+        else:
+            catmask[yind_list[1],xind_list[1]]=1.0          # the idea of the catmask gets a little goofy in this situation
+    
+    elif areatype.lower()=="box":
+        finelat=np.arange(latrange[0],latrange[-1]-rainprop.spatialres[1]+rainprop.spatialres[0]/1000,-rainprop.spatialres[1]/25)
+        finelon=np.arange(lonrange[0],lonrange[-1]+rainprop.spatialres[0]-rainprop.spatialres[0]/1000,rainprop.spatialres[0]/25)
+    
+        subindy=np.logical_and(finelat>boxarea[2]+rainprop.spatialres[1]/1000,finelat<boxarea[3]+rainprop.spatialres[1]/1000)
+        subindx=np.logical_and(finelon>boxarea[0]-rainprop.spatialres[0]/1000,finelon<boxarea[1]-rainprop.spatialres[0]/1000)
+        
+        tx,ty=np.meshgrid(subindx,subindy)
+        catmask=np.array(np.logical_and(tx==True,ty==True),dtype='float32')
+        
+        if len(finelat[subindy])<25 and len(finelon[subindx])<25:    
+            print('WARNING: you set POINTAREA to "box", but the box is smaller than a single pixel.  This is not advised.  Either set POINTAREA to "point" or increase the size of the box.')
+        
+        if len(finelat[subindy])==1 and len(finelon[subindx])==1:
+            catmask=np.zeros((rainprop.subdimensions))
+            yind=np.where((latrange-ptlat)>0)[0][-1]
+            xind=np.where((ptlon-lonrange)>0)[0][-1]  
+            if xind==0 or yind==0:
+                sys.exit('the point you defined is too close to the edge of the box you defined!')
+            else:
+                catmask[yind,xind]=1.0
+        else:
+            def block_mean(ar, fact):
+                assert isinstance(fact, int), type(fact)
+                sx, sy = ar.shape
+                X, Y = np.ogrid[0:sx, 0:sy]
+                regions = sy//fact * (X//fact) + Y//fact
+                res = ndimage.mean(ar, labels=regions, index=np.arange(regions.max() + 1))
+                res.shape = (sx//fact, sy//fact)
+                return res
+    
+            catmask=block_mean(catmask,25)          # this scheme is a bit of a numerical approximation but I doubt it makes much practical difference  
     else:
-        def block_mean(ar, fact):
-            assert isinstance(fact, int), type(fact)
-            sx, sy = ar.shape
-            X, Y = np.ogrid[0:sx, 0:sy]
-            regions = sy//fact * (X//fact) + Y//fact
-            res = ndimage.mean(ar, labels=regions, index=np.arange(regions.max() + 1))
-            res.shape = (sx//fact, sy//fact)
-            return res
-
-        catmask=block_mean(catmask,25)          # this scheme is a bit of a numerical approximation but I doubt it makes much practical difference  
-else:
-    sys.exit("unrecognized area type!")
+        sys.exit("unrecognized area type!")
 
        
 # TRIM THE GRID DOWN
@@ -1088,26 +1061,27 @@ mnorm=np.sum(trimmask)
 xlen=rainprop.subdimensions[1]-maskwidth+1
 ylen=rainprop.subdimensions[0]-maskheight+1
 
-if ncfdom:
-    ingridx_dom,ingridy_dom=np.meshgrid(domainlon,domainlat)        
-
-    ingrid_domain=np.column_stack((ingridx_dom.flatten(),ingridy_dom.flatten())) 
-    #ingridx,ingridy=np.meshgrid(np.arange(rainprop.subextent[0],rainprop.subextent[1]-rainprop.spatialres[0]/1000,rainprop.spatialres[0]),np.arange(rainprop.subextent[3],rainprop.subextent[2]+rainprop.spatialres[1]/1000,-rainprop.spatialres[1]))        
-    grid_rainfall=np.column_stack((ingridx.flatten(),ingridy.flatten())) 
+if CreateCatalog:
+    if ncfdom:
+        ingridx_dom,ingridy_dom=np.meshgrid(domainlon,domainlat)        
     
-    delaunay=sp.spatial.qhull.Delaunay(ingrid_domain)
-    interp=sp.interpolate.NearestNDInterpolator(delaunay,domainmask.flatten())
-
-    # in case you want it back in a rectangular grid:
-    domainmask=np.reshape(interp(grid_rainfall),ingridx.shape)    
-
-elif domain_type.lower()=='irregular' and shpdom and CreateCatalog:
-    domainmask=RainyDay.rastermask(domainshp,rainprop,'simple').astype('float32')
-    #domainmask=catmask.reshape(ingridx.shape,order='F')
-elif domain_type.lower()=='rectangular':
-    domainmask=np.ones((catmask.shape),dtype='float32')    
-else:
-    pass
+        ingrid_domain=np.column_stack((ingridx_dom.flatten(),ingridy_dom.flatten())) 
+        #ingridx,ingridy=np.meshgrid(np.arange(rainprop.subextent[0],rainprop.subextent[1]-rainprop.spatialres[0]/1000,rainprop.spatialres[0]),np.arange(rainprop.subextent[3],rainprop.subextent[2]+rainprop.spatialres[1]/1000,-rainprop.spatialres[1]))        
+        grid_rainfall=np.column_stack((ingridx.flatten(),ingridy.flatten())) 
+        
+        delaunay=sp.spatial.qhull.Delaunay(ingrid_domain)
+        interp=sp.interpolate.NearestNDInterpolator(delaunay,domainmask.flatten())
+    
+        # in case you want it back in a rectangular grid:
+        domainmask=np.reshape(interp(grid_rainfall),ingridx.shape)    
+    
+    elif domain_type.lower()=='irregular' and shpdom and CreateCatalog:
+        domainmask=RainyDay.rastermask(domainshp,rainprop,'simple').astype('float32')
+        #domainmask=catmask.reshape(ingridx.shape,order='F')
+    elif domain_type.lower()=='rectangular':
+        domainmask=np.ones((catmask.shape),dtype='float32')    
+    else:
+        pass
 
 
 if catmask.shape!=domainmask.shape:
@@ -1195,31 +1169,28 @@ if CreateCatalog:
             subtime=np.arange(raintime[-1],starttime,-timestep)[::-1]
             temparray=np.squeeze(np.nansum(rainarray[subtimeind,:],axis=1))
             
-            if np.any(np.greater(temparray,np.min(catmax))): # DBW-added this if statement on 10112022. It seems like this should speed things up!
-                if domain_type=='irregular':
-                    rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
+            if domain_type=='irregular':
+                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
+            else:
+                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
+                
+            minind=np.argmin(catmax)
+            tempmin=catmax[minind]
+            if rainmax>tempmin:
+                checksep=intime[k]-cattime[:,-1]
+                if (checksep<timeseparation).any():
+                    checkind=np.where(checksep<timeseparation)
+                    if rainmax>=catmax[checkind]:
+                        catmax[checkind]=rainmax
+                        cattime[checkind,:]=subtime
+                        catx[checkind]=xcat
+                        caty[checkind]=ycat
+
                 else:
-                    rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
-                    
-                minind=np.argmin(catmax)
-                tempmin=catmax[minind]
-                if rainmax>tempmin:
-                    checksep=intime[k]-cattime[:,-1]
-                    if (checksep<timeseparation).any():
-                        checkind=np.where(checksep<timeseparation)
-                        if rainmax>=catmax[checkind]:
-                            catmax[checkind]=rainmax
-                            cattime[checkind,:]=subtime
-                            catx[checkind]=xcat
-                            caty[checkind]=ycat
-                            
-                            
-                        
-                    else:
-                        catmax[minind]   =rainmax
-                        cattime[minind,:]=subtime
-                        catx[minind]     =xcat
-                        caty[minind]     =ycat
+                    catmax[minind]   =rainmax
+                    cattime[minind,:]=subtime
+                    catx[minind]     =xcat
+                    caty[minind]     =ycat
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
@@ -1260,18 +1231,18 @@ if CreateCatalog:
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
             k += 1
-        storm_name = "Storm" + str(i+1) +".nc"
+        storm_name = catalogname + str(i+1) +".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         RainyDay.writecatalog_ash(scenarioname,catrain,\
-                                  catmax[i],\
-                                      catx[i],caty[i],\
-                                          cattime[i,:],latrange,lonrange,\
+                                  catmax,\
+                                      catx,caty,\
+                                          cattime,latrange,lonrange,\
                                               storm_name,catmask,parameterfile,domainmask,\
-                                                  timeresolution=rainprop.timeres)      
+                                                 nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)      
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
 
-        
+    stormlist = glob.glob(catalogname + '*' + '.nc')    
 #%%
 #################################################################################
 # STEP 2: RESAMPLING
@@ -1281,88 +1252,90 @@ if CreateCatalog:
     
 print("trimming storm catalog...")
 
-origstormsno=np.arange(0,len(catmax),dtype='int32')
-
 if CreateCatalog==False:
-    if duration>catrain.shape[1]*rainprop.timeres/60.:
+    if duration>catrain.shape[0]*rainprop.timeres/60.:
         sys.exit("The specified duration is longer than the length of the storm catalog")
 
-                
+origstormsno=np.arange(0,len(stormlist),dtype='int32')                 
 # EXLCUDE "BAD" STORMS OR FOR DOING SENSITIVITY ANALYSIS TO PARTICULAR STORMS.  THIS IS PARTICULARLY NEEDED FOR ANY RADAR RAINFALL PRODUCT WITH SERIOUS ARTIFACTS
-includestorms=np.ones((len(catmax)),dtype="bool")
+# includestorms=np.ones((len(stormlist)),dtype="bool")
 
 try:
     exclude=cardinfo["EXCLUDESTORMS"]
-    exclude=exclude.replace(' ', '')
+    if type(exclude) == str:
+        exclude = 'none'
+    else:
+        for storms in exclude:
+            if 1 <= storms <= len(stormlist):
+                continue
+            else:
+                sys.exit("something seems wrong! You are excluding storms that aren't in the catalog.")
 except Exception:
     exclude='none'
-   
-if exclude.lower()!="none" and exclude.lower()!="false" and CreateCatalog==False:
-	exclude=exclude.split(',')
-	for i in range(0,len(exclude)):
-		if np.int(exclude[i])-1<len(catmax):
-			includestorms[np.int(exclude[i])-1]=False
-		else:
-			sys.exit("something seems wrong! You are excluding storms that aren't in the catalog.")
-elif exclude.lower()!="none" and CreateCatalog:
-		sys.exit("You are excluding storms from a new storm catalog, without inspecting them first. This seems like a bad idea.")
 
+  
+if exclude !="none" and CreateCatalog==False:
+    includestorms = np.array([True if i+1 not in exclude else False for i in range(len(stormlist))])
+    stormlist = [stormlist[i] for i in range(len(stormlist)) if i+1 not in exclude]
+elif exclude !="none" and CreateCatalog:
+		sys.exit("You are excluding storms from a new storm catalog, without inspecting them first. This seems like a bad idea.")
+else:
+    includestorms = np.ones((len(stormlist)),dtype="bool")
     
-includestorms[np.isclose(catmax,0.)]=False
-        
-catrain=catrain[includestorms,:]   ##Error here because of obvoius reason.
-catmax=catmax[includestorms]
-catx=catx[includestorms]
-caty=caty[includestorms]
-cattime=cattime[includestorms,:]    
+# includestorms[np.isclose(catmax,0.)]=False   ## Do we need to check this
+       
+# catrain=catrain[includestorms,:]   
+# catmax=catmax[includestorms]
+# catx=catx[includestorms]
+# caty=caty[includestorms]
+# cattime=cattime[includestorms,:]    
 modstormsno=origstormsno[includestorms]  
 
 
 # EXCLUDE STORMS BY MONTH AND YEAR
 # THIS SECTION EXISTS IN CASE YOU WANT TO USE A PRE-EXISTING STORM CATALOG THAT HASN'T CONSIDERED ANY MONTH-BASED OR YEAR-BASED EXCLUSION
-if CreateCatalog==False:        
-    catyears=cattime[:,0].astype('datetime64[Y]').astype(int)+1970
-    if cattime.shape[1]>1:
-        catmonths=cattime[:,-2].astype('datetime64[M]').astype(int)-(catyears-1970)*12+1   # set to "-2" instead of "-1" to catch a very specific situation
-    else:
-        catmonths=cattime[:,-1].astype('datetime64[M]').astype(int)-(catyears-1970)*12+1
-    catinclude=np.ones(cattime.shape[0],dtype="bool")
-    if isinstance(includeyears, (bool))==False:
-        excludeyears=set(catyears)^set(includeyears)
-        for j in excludeyears:
-            catinclude[catyears==j]=False
-    if isinstance(excludemonths,(bool))==False:
-        for j in excludemonths:
-            catinclude[catmonths==j]=False
-    nstorms_cat=np.sum(catinclude==True)
-    catrain=catrain[catinclude,:]
-    catmax=catmax[catinclude]
-    catx=catx[catinclude]
-    caty=caty[catinclude]
-    cattime=cattime[catinclude,:]
-    
+if CreateCatalog==False:
+    catinclude=np.ones(len(stormlist),dtype="bool")
+    new_stormlist = []       
+    for ind, storm in enumerate(stormlist):
+        st_ds = xr.open_dataset(storm)
+        st_year = list(np.unique(st_ds.time[0].dt.year))[0]
+        st_month = list(np.unique(st_ds.time[0].dt.month))[0]
+        if includeyears == False:
+            if st_month not in excludemonths:
+                new_stormlist.append(storm)
+            else:
+                catinclude[ind] = False
+        else:
+            if st_year in includeyears and st_month not in excludemonths:
+               new_stormlist.append(storm)
+            else:
+              catinclude[ind] = False  
+                
+    stormlist = new_stormlist
+    nstorms_cat=len(stormlist)
     if defaultstorms:
         if nstorms_default<modstormsno.shape[0]:
-            modstormsno=modstormsno[-nstorms_default:]
+            modstormsno=modstormsno[-nstorms_default:]   ### we have deleted this nstorms_default
     else:
-        modstormsno=modstormsno[catinclude]
+        modstormsno=modstormsno[catinclude]      #### How to handle this?
         
 else:
-    nstorms_cat=len(catmax) 
-        
+    nstorms_cat=len(stormlist)
 if nstorms<nstorms_cat:
-    catrain=catrain[-nstorms:,:]
-    catmax=catmax[-nstorms:]
-    catx=catx[-nstorms:]
-    caty=caty[-nstorms:]
-    cattime=cattime[-nstorms:,:]
-    nstorms=np.shape(catx)[0]
-    modstormsno=modstormsno[-nstorms:]
+    stormlist = stormlist[-nstorms:]
+    nstorms = len(stormlist)      
+# if nstorms<nstorms_cat:
+#     catrain=catrain[-nstorms:,:]       ###  Any suggestions here
+#     catmax=catmax[-nstorms:]
+#     catx=catx[-nstorms:]
+#     caty=caty[-nstorms:]
+#     cattime=cattime[-nstorms:,:]
+#     nstorms=np.shape(catx)[0]
+#     modstormsno=modstormsno[-nstorms:]   ### What are we doing here?
 else:    
-    nstorms=np.sum(includestorms==True)
+    nstorms= len(stormlist)
     
-catmax=catmax*IntensitySens
-catrain=catrain*IntensitySens
 
 
 
@@ -1371,82 +1344,78 @@ catrain=catrain*IntensitySens
 # find the max rainfall for the N-hour duration, not the M-day duration
 #==============================================================================
 
-durationcheck=60./rainprop.timeres*duration==np.float(catrain.shape[1])
+durationcheck=60./rainprop.timeres*duration==np.float(catrain.shape[0])
 
-#if (durationcheck==False and durcorrection==True) or (durationcheck==False and DoDiagnostics): 
-if (durationcheck==False and durcorrection==False): 
-    print("checking storm catalog duration, and adjusting if needed...")
+# # if (durationcheck==False and durcorrection==True) or (durationcheck==False and DoDiagnostics): 
+# if (durationcheck==False and durcorrection==False): 
+#     print("checking storm catalog duration, and adjusting if needed...")
     
-    # if you are using a catalog that is longer in duration than your desired analysis, this happens:
-    print("Storm catalog duration is longer than the specified duration, finding max precipitation periods for specified duration...")
+#     # if you are using a catalog that is longer in duration than your desired analysis, this happens:
+#     print("Storm catalog duration is longer than the specified duration, finding max precipitation periods for specified duration...")
 
-    # the first run through trims the storm catalog duration to the desired duration, for diagnostic purposes if needed...       
-    dur_maxind=np.array((nstorms),dtype='int32')
-    dur_x=0
-    dur_y=0
-    dur_j=0
-    temprain=np.zeros((nstorms,int(duration*60/rainprop.timeres),rainprop.subdimensions[0],rainprop.subdimensions[1]),dtype='float32')
-    rainsum=np.zeros((rainprop.subdimensions[0]-maskheight+1,rainprop.subdimensions[1]-maskwidth+1),dtype='float32')
+#     # the first run through trims the storm catalog duration to the desired duration, for diagnostic purposes if needed...       
+#     dur_maxind=np.array((nstorms),dtype='int32')
+#     dur_x=0
+#     dur_y=0
+#     dur_j=0
+#     temprain=np.zeros((nstorms,int(duration*60/rainprop.timeres),rainprop.subdimensions[0],rainprop.subdimensions[1]),dtype='float32')
+#     rainsum=np.zeros((rainprop.subdimensions[0]-maskheight+1,rainprop.subdimensions[1]-maskwidth+1),dtype='float32')
 
-    # I think the following commented block was wrong, but haven't fully tested the change-DBW 1/24/2020
-#        if durcorrection:
-#            catmax_subdur=np.zeros_like(catmax)
-#            catx_subdur=np.zeros_like(catx)
-#            caty_subdur=np.zeros_like(caty)
-#            cattime_subdur=cattime
+#     # I think the following commented block was wrong, but haven't fully tested the change-DBW 1/24/2020
+# #        if durcorrection:
+# #            catmax_subdur=np.zeros_like(catmax)
+# #            catx_subdur=np.zeros_like(catx)
+# #            caty_subdur=np.zeros_like(caty)
+# #            cattime_subdur=cattime
     
-    catmax_subdur=np.zeros_like(catmax)
-    catx_subdur=np.zeros_like(catx)
-    caty_subdur=np.zeros_like(caty)
-    cattime_subdur=cattime
+#     catmax_subdur=  np.zeros_like(catmax)
+#     catx_subdur  =  np.zeros_like(catx)
+#     caty_subdur  =  np.zeros_like(caty)
+#     cattime_subdur=cattime
 
-    temptime=np.empty((nstorms,int(duration*60/rainprop.timeres)),dtype='datetime64[m]')
-    for i in range(0,nstorms):
-        #if (100*((i+1)%(nstorms//10)))==0:
-        print('adjusting duration of storms, '+"{0:0.0f}".format(100*(i+1)/nstorms)+'% complete...')
-        dur_max=0.
-        for j in range(0,catrain.shape[1]-int(duration*60/rainprop.timeres)):
-            maxpass=np.nansum(catrain[i,j:j+int(duration*60./rainprop.timeres),:],axis=0)
+#     temptime=np.empty((nstorms,int(duration*60/rainprop.timeres)),dtype='datetime64[m]')
+#     for i in range(0,nstorms):
+#         #if (100*((i+1)%(nstorms//10)))==0:
+#         print('adjusting duration of storms, '+"{0:0.0f}".format(100*(i+1)/nstorms)+'% complete...')
+#         dur_max=0.
+#         for j in range(0,catrain.shape[1]-int(duration*60/rainprop.timeres)):
+#             maxpass=np.nansum(catrain[i,j:j+int(duration*60./rainprop.timeres),:],axis=0)
             
-            if domain_type.lower()=='irregular':
-                maxtemp,tempy,tempx=RainyDay.catalogNumba_irregular(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)   
-            else:
-                maxtemp,tempy,tempx=RainyDay.catalogNumba(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)                       
+#             if domain_type.lower()=='irregular':
+#                 maxtemp,tempy,tempx=RainyDay.catalogNumba_irregular(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)   
+#             else:
+#                 maxtemp,tempy,tempx=RainyDay.catalogNumba(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)                       
  
-            if maxtemp>dur_max:
-                dur_max=maxtemp
-                dur_x=tempx
-                dur_y=tempy
-                dur_j=j
+#             if maxtemp>dur_max:
+#                 dur_max=maxtemp
+#                 dur_x=tempx
+#                 dur_y=tempy
+#                 dur_j=j
 
-        catmax_subdur[i]=dur_max
-        catx_subdur[i]=dur_x
-        caty_subdur[i]=dur_y  
+#         catmax_subdur[i]=dur_max
+#         catx_subdur[i]=dur_x
+#         caty_subdur[i]=dur_y  
 
-        temprain[i,:]=catrain[i,dur_j:dur_j+int(duration*60./rainprop.timeres),:]
-        temptime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
+#         temprain[i,:]=catrain[i,dur_j:dur_j+int(duration*60./rainprop.timeres),:]
+#         temptime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
     
-    catrain_subdur=temprain
-    cattime_subdur=temptime
+#     catrain_subdur=temprain
+#     cattime_subdur=temptime
 
-    sind=np.argsort(catmax_subdur)
+#     sind=np.argsort(catmax_subdur)
     
-    cattime=cattime_subdur[sind,:]
-    catx=catx_subdur[sind]
-    caty=caty_subdur[sind]
-    catrain=catrain_subdur[sind,:]
-    catmax=catmax_subdur[sind]/mnorm*rainprop.timeres/60.        
+#     cattime=cattime_subdur[sind,:]
+#     catx=catx_subdur[sind]
+#     caty=caty_subdur[sind]
+#     catrain=catrain_subdur[sind,:]
+#     catmax=catmax_subdur[sind]/mnorm*rainprop.timeres/60.        
 
 
 #==============================================================================
 # IF THE USER IS SUPPLYING A DISTRIBUTION FOR THE INTENSITY, NORMALIZE THE FIELDS
 # SO THAT THE INTENSITY CAN BE APPLIED PROPERLY
 #==============================================================================
-if userdistr.all()!=False:   
-    print("normalizing precipitation fields...")
-    for i in range(0,nstorms):
-        tempmax=np.nanmax(np.nansum(catrain[i,:],axis=0))
-        catrain[i,:]=catrain[i,:]/tempmax
+
 
 
 
@@ -1840,7 +1809,7 @@ if FreqAnalysis:
     print("resampling and transposing...")
     
     if np.all(includeyears==False):
-        nyears=len(range(min(cattime[:,-1].astype('datetime64[Y]').astype(int)),max(cattime[:,-1].astype('datetime64[Y]').astype(int))+1))
+        nyears=len(np.unique(cattime[:,-1].astype('datetime64[Y]')))
     else:
         nyears=len(includeyears)
         
@@ -2030,6 +1999,50 @@ if FreqAnalysis:
    
     # here is the main resampling and transposition loop
     for i in np.arange(0,nstorms):
+        catrain,_,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
+        catrain = np.array(catrain)
+        if (durationcheck==False and durcorrection==False): 
+            print("checking storm catalog duration, and adjusting if needed...")
+            
+            # if you are using a catalog that is longer in duration than your desired analysis, this happens:
+            print("Storm catalog duration is longer than the specified duration, finding max precipitation periods for specified duration...")
+
+            # the first run through trims the storm catalog duration to the desired duration, for diagnostic purposes if needed...       
+            dur_x=0
+            dur_y=0
+            dur_j=0
+            rainsum=np.zeros((rainprop.subdimensions[0]-maskheight+1,rainprop.subdimensions[1]-maskwidth+1),dtype='float32')
+
+            # I think the following commented block was wrong, but haven't fully tested the change-DBW 1/24/2020
+        #        if durcorrection:
+        #            catmax_subdur=np.zeros_like(catmax)
+        #            catx_subdur=np.zeros_like(catx)
+        #            caty_subdur=np.zeros_like(caty)
+        #            cattime_subdur=cattime
+
+            temptime=np.empty((nstorms,int(duration*60/rainprop.timeres)),dtype='datetime64[m]')
+                #if (100*((i+1)%(nstorms//10)))==0:
+            print('adjusting duration of storms, '+"{0:0.0f}".format(100*(i+1)/nstorms)+'% complete...')
+            dur_max=0.
+            for j in range(0,catrain.shape[0]-int(duration*60/rainprop.timeres)):
+                maxpass=np.nansum(catrain[j:j+int(duration*60./rainprop.timeres),:],axis=0)
+                
+                if domain_type.lower()=='irregular':
+                    maxtemp,tempy,tempx=RainyDay.catalogNumba_irregular(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)   
+                else:
+                    maxtemp,tempy,tempx=RainyDay.catalogNumba(maxpass,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)                       
+     
+                if maxtemp>dur_max:
+                    dur_max=maxtemp
+                    dur_x=tempx
+                    dur_y=tempy
+                    dur_j=j
+
+            catmax[i]=dur_max
+            catx[i]=dur_x
+            caty[i]=dur_y  
+            catrain=catrain[dur_j:dur_j+int(duration*60./rainprop.timeres),:]
+            cattime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
         print('Resampling and transposing storm '+str(i+1)+' out of '+str(nstorms)+' ('"{0:0.0f}".format(100*(i+1)/nstorms)+'%)')
         # UNIFORM RESAMPLING
         if transpotype=='uniform' and domain_type=='rectangular':
@@ -2055,10 +2068,10 @@ if FreqAnalysis:
             sys.exit("not configured for manually supplied pdf yet!")
     
         if durcorrection:
-            passrain=np.array(RainyDay.rolling_sum(catrain[i,:], int(duration*60/rainprop.timeres)),dtype='float32')
+            passrain=np.array(RainyDay.rolling_sum(catrain, int(duration*60/rainprop.timeres)),dtype='float32')
             
         else:
-            passrain=np.nansum(catrain[i,:],axis=0)         # time-average the rainfall
+            passrain=np.nansum(catrain,axis=0)         # time-average the rainfall
     
         if rotation: 
             print('rotating storms for transposition, '+str(100*(i+1)/nstorms)+'% complete...')
