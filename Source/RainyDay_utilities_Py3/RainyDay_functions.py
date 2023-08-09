@@ -26,17 +26,15 @@ import sys
 import numpy as np
 import scipy as sp
 import glob
-import math
 import re     
-from datetime import datetime, date, time, timedelta      
+from datetime import datetime, date    
 import time
-from copy import deepcopy
 import fiona
+import copy
+#import nctoolkit
 
-import cartopy
-from matplotlib.patches import Polygon   
-from scipy import stats
-from netCDF4 import Dataset, num2date, date2num
+#from netCDF4 import Dataset, num2date, date2num
+import h5netcdf
 import rasterio
 from rasterio.transform import from_origin
 from rasterio.shutil import delete
@@ -126,6 +124,17 @@ def convert_3D_2D(geometry):
 
 
 
+# adapted from https://pythonadventures.wordpress.com/2016/03/06/detect-duplicate-keys-in-a-json-file/
+def dict_raise_on_duplicates(ordered_pairs):
+    """Reject duplicate keys."""
+    d = {}
+    for k, v in ordered_pairs:
+        if k in d:
+           sys.exit("duplicate key: %r" % (k,))
+        else:
+           d[k] = v
+    return d
+
 #==============================================================================
 # LOOP TO DO SPATIAL SEARCHING FOR MAXIMUM RAINFALL LOCATION AT EACH TIME STEP
 # THIS IS THE CORE OF THE STORM CATALOG CREATION TECHNIQUE
@@ -181,6 +190,7 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
     wheremax=np.where(rainsum==rmax)
     
     return rmax, wheremax[0][0], wheremax[1][0]
+
 
 
 
@@ -830,10 +840,10 @@ def kernelloop(nlocs,rndloc,flatkern,ncols,tempx,tempy):
 #============================================================================== 
 
 
-def findsubbox(inarea,variables,flist):
+def findsubbox(inarea,variables,fname):
     outextent = np.empty([4])
     outdim=np.empty([2], dtype= 'int')
-    infile=xr.open_dataset(flist)
+    infile=xr.open_dataset(fname)
     latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
     rain_name,lat_name,lon_name = variables.values()
     outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
@@ -842,7 +852,7 @@ def findsubbox(inarea,variables,flist):
                                 outrain[lon_name][0], outrain[lon_name][-1]       
     outdim[0], outdim[1] = len(outrain[lat_name]), len(outrain[lon_name])
     infile.close()
-    return outextent, outdim, np.array(outrain[lat_name])[::-1], np.array(outrain[lon_name])
+    return outextent, outdim, np.array(outrain[lat_name]), np.array(outrain[lon_name])
     
     
     
@@ -1136,7 +1146,7 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 # READ RAINFALL FILE FROM NETCDF (ONLY FOR RAINYDAY NETCDF-FORMATTED DAILY FILES!
 #==============================================================================
 
-def readnetcdf(rfile,variables,inbounds=False):
+def readnetcdf(rfile,variables,inbounds=False,dropvars=False):
     """
     Used to trim the dataset with defined inbounds or transposition domain
 
@@ -1155,7 +1165,10 @@ def readnetcdf(rfile,variables,inbounds=False):
         DESCRIPTION.
 
     """
-    infile=xr.open_dataset(rfile)
+    if dropvars==False:
+        infile=xr.open_dataset(rfile)
+    else:
+        infile=xr.open_dataset(rfile,drop_variables=dropvars)  # added DBW 07282023 to avoid reading in unnecessary variables
     rain_name,lat_name,lon_name = variables.values()
     if np.any(inbounds!=False):
         latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
@@ -1192,7 +1205,7 @@ def readcatalog(rfile) :
         The all storms cattime, catmax, catx and caty are also returned.
 
     """
-    infile=xr.open_dataset(rfile)
+    infile=xr.open_dataset(rfile, engine='h5netcdf')
 
     outrain=infile['rain']
     outlatitude=infile['latitude']
@@ -1504,6 +1517,8 @@ def try_parsing_date(text):
         except ValueError:
             pass
     raise ValueError('no valid date format found')  ### This fucntion is not tested yet
+    
+    
 def createfilelist(inpath, includeyears, excludemonths):
     flist = sorted(glob.glob(inpath))
     new_list = [] ; years = set()
@@ -1535,7 +1550,21 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
     if catalog:
         inrain,intime,inlatitude,inlongitude,catx,caty,catmax,_,domainmask=readcatalog(infile)
     else:
-        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables)
+        # configure things so that in the storm catalog creation loop, we only read in the necessary variables
+        invars=copy.deepcopy(variables)
+        # we don't want to drop these:
+        del invars['latname']   
+        del invars['longname']
+        keepvars=list(invars.values())
+
+        # open the "entire" netcdf file once in order to get the list of all variables:        
+        inds=xr.open_dataset(infile)
+
+        # this will only keep the variables that we need to read in. 
+        droplist=find_unique_elements(inds.keys(),keepvars) # droplist will be passed to the 'drop_variables=' in xr.open_dataset within the storm catalog creation loop in RainyDay
+        inds.close()
+        
+        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables,dropvars=droplist)
 
     if len(inlatitude.shape)>1 or len(inlongitude.shape)>1:
         sys.exit("RainyDay isn't set up for netcdf files that aren't on a regular lat/lon grid!")
@@ -1575,7 +1604,7 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
     if catalog:
         return [xres,yres], [len(inlatitude),len(inlongitude)],[np.min(inlongitude),np.max(inlongitude),np.min(inlatitude),np.max(inlatitude)],tempres,nodata,inrain,intime,inlatitude,inlongitude,catx,caty,catmax,domainmask
     else:
-        return [xres,yres], [len(inlatitude),len(inlongitude)],[np.min(inlongitude),np.max(inlongitude)+xres,np.min(inlatitude)-yres,np.max(inlatitude)],tempres,nodata
+        return [xres,yres], [len(inlatitude),len(inlongitude)],[np.min(inlongitude),np.max(inlongitude)+xres,np.min(inlatitude)-yres,np.max(inlatitude)],tempres,nodata,droplist
 
 
 #==============================================================================
@@ -1744,5 +1773,24 @@ def read_arcascii(asciifile):
 
 
 
+#==============================================================================
+# used for prepping "drop_variables" so we don't read in unnecessary variables using xarray
+#==============================================================================
+def find_unique_elements(list1, list2):
+    """
+    Used to return only the elements of list1 that are not present in list2
 
+    Parameters
+    ----------
+    list1 : target list of values to be reduced according to list2
+    variables : list of values used to identify the values to keep in list1
+
+    Returns
+    -------
+    list with only the values in list1 that were not present in list2
+
+    """
+    unique_elements_in_list1 = [x for x in list1 if x not in list2]
+    #unique_elements_in_list2 = [x for x in list2 if x not in list1]
+    return unique_elements_in_list1
 
