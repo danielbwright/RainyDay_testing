@@ -1,0 +1,18 @@
+{
+"MAINPATH" : "/Volumes/My Book/CONUS404_reduced" ,
+"SCENARIONAME" : "RainyDay_MadisonExample_24hr_empirical",
+"RAINPATH" : "/Volumes/My Book/CONUS404_reduced/1980_2020/wrf2d_d01_*.nc",
+"CATALOGNAME" : "CONUS_Madison_ExampleCatalog.nc",
+"CREATECATALOG" : "true", "DURATION" : 24 ,
+"NYEARS" : 500 , "NSTORMS" : 1000, "NREALIZATIONS" : 100,
+"TIMESEPARATION" : 12, "DOMAINTYPE" : "rectangular",
+"DIAGNOSTICPLOTS" : "false", "FREQANALYSIS" : "false", 
+"EXCLUDESTORMS" : "none", "EXCLUDEMONTHS": [1,2,3,12],
+"INCLUDEYEARS" : "all", 
+"Area_Extent"  : {"LATITUDE_MIN":42.5,"LATITUDE_MAX":44.0,"LONGITUDE_MIN": -90.5, "LONGITUDE_MAX": -88.0},
+"DURATIONCORRECTION" : "TRUE", "TRANSPOSITION" : "uniform", "RESAMPLING" : "empirical", "RETURNLEVELS": [2,5,10,25,50,100,200,500], "RETURNTHRESHOLD" : 1 , 
+"POINTAREA" : "rectangle", "POINTLAT": 43.075 , 
+"POINTLON": -89.385, "BOX_YMIN": 43.0, "BOX_YMAX": 43.25, "BOX_XMIN" : -89.5, "BOX_XMAX" : -89.25,
+"CALCTYPE" : "PDS"
+
+}
