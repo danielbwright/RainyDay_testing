@@ -424,8 +424,8 @@ if domain_type.lower()=='irregular':
         except Exception:
             print("Trouble finding the domain shapefile. Technically we don't need it, so we'll skip this part.")
 
-        yres=np.abs(np.mean(np.array(latrange)[1:]-np.array(latrange)[0:-1]))
-        xres=np.abs(np.mean(np.array(lonrange)[1:]-np.array(lonrange)[0:-1]))
+        yres=np.abs(latrange.diff(dim='latitude')).mean()
+        xres=np.abs(lonrange.diff(dim='longitude')).mean()
         inarea=np.array([lonrange[0],lonrange[-1]+res,latrange[-1]-res,latrange[0]])
 
     if ncfdom==False and shpdom==False and CreateCatalog:
