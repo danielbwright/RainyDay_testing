@@ -852,7 +852,7 @@ def findsubbox(inarea,variables,fname):
                                 outrain[lon_name][0], outrain[lon_name][-1]       
     outdim[0], outdim[1] = len(outrain[lat_name]), len(outrain[lon_name])
     infile.close()
-    return outextent, outdim, np.array(outrain[lat_name]), np.array(outrain[lon_name])
+    return outextent, outdim, outrain[lat_name], outrain[lon_name]
     
     
     
@@ -1290,18 +1290,17 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay Storm Catalog for scenario ' + scenarioname + '. See description for JSON file contents.'
 
-
     data_vars = dict(rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
-                     basinrainfall = (("catmax"),catmax.reshape(nstorms),{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
-                     xlocation = (("xloc"),catx.reshape(nstorms),{'units': 'dimensionless', 'long_name': xlocation_name}),
-                     ylocation = (("yloc"),caty.reshape(nstorms),{'units': 'dimensionless', 'long_name': ylocation_name}),
-                     cattime = (("stormtime","duration"), cattime),
+                     basinrainfall = (("storm_dim"),catmax.reshape(nstorms),{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
+                     xlocation = (("storm_dim"),catx.reshape(nstorms),{'units': 'dimensionless', 'long_name': xlocation_name}),
+                     ylocation = (("storm_dim"),caty.reshape(nstorms),{'units': 'dimensionless', 'long_name': ylocation_name}),
+                     cattime = (("storm_dim","time"), cattime),
                      gridmask= (("latitude", "longitude"), gridmask[::-1, :],{'units': 'dimensionless', 'long_name': gmask_name}),
                      domainmask = (("latitude", "longitude"),dmask[::-1, :],{'units': 'dimensionless', 'long_name': domainmask_name}),
                      timeresolution = ((), timeresolution) )
     coords = dict(time = ((times_name),cattime[storm_num,:]),
-                  longitude = (("longitude"), lonrange, {'units': longitudes_units, 'long_name': longitudes_name}),
-                  latitude =  (("latitude"), latrange[::-1], {'units': latitudes_units, 'long_name': latitudes_name}),
+                  longitude = (("longitude"), lonrange.data , {'units': longitudes_units, 'long_name': longitudes_name}),
+                  latitude =  (("latitude"), latrange[::-1].data, {'units': latitudes_units, 'long_name': latitudes_name}),
                   )
 
 
@@ -1311,77 +1310,6 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
 
     catalog.to_netcdf(catalogname)
     catalog.close()
-
-#### Ashar : The files are somehow not opening in the xarray.
-def writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,gridmask,parameterfile,dmask,timeresolution=False):
-    dataset=Dataset(catalogname, 'w', format='NETCDF4')
-    
-    # create dimensions
-    lat_dim=dataset.createDimension('latitude',len(latrange))
-    lon_dim=dataset.createDimension('longitude',len(lonrange))
-    time_dim=dataset.createDimension('time',cattime.shape[1])
-    nstorms=dataset.createDimension('nstorms',nstorms)
-
-    # create variables
-    times=dataset.createVariable('time',np.float64, ('nstorms','time',))
-    latitudes=dataset.createVariable('latitude',np.float64, ('latitude',))
-    longitudes=dataset.createVariable('longitude',np.float64, ('longitude',))
-    rainrate=dataset.createVariable('precrate',np.float32,('nstorms','time','latitude','longitude',),zlib=True,complevel=4,least_significant_digit=1) 
-    basinrainfall=dataset.createVariable('basinrainfall',np.float32,('nstorms')) 
-    xlocation=dataset.createVariable('xlocation',np.int16,('nstorms')) 
-    ylocation=dataset.createVariable('ylocation',np.int16,('nstorms')) 
-    gmask=dataset.createVariable('gridmask',np.float32,('latitude','longitude',)) 
-    domainmask=dataset.createVariable('domainmask',np.float32,('latitude','longitude',)) 
-    
-    times.long_name='time'
-    latitudes.long_name='latitude'
-    longitudes.long_name='longitude'
-    rainrate.long_name='precipitation rate'
-    basinrainfall.long_name='storm total basin averaged precipitation'
-    xlocation.long_name='x index of storm'
-    ylocation.long_name='y index of storm'
-    gmask.long_name='mask for Aw (control volume)'
-    domainmask.long_name='mask for transposition domain'
-    
-    # Variable Attributes (time since 1970-01-01 00:00:00.0 in numpys)
-    latitudes.units = 'degrees_north'
-    longitudes.units = 'degrees_east'
-    rainrate.units = 'mm hr^-1'
-    basinrainfall.units='mm'
-    times.units = 'minutes since 1970-01-01 00:00.0'
-    times.calendar = 'gregorian'
-    gmask.units="dimensionless"
-    domainmask.units="dimensionless"
-    xlocation.units='dimensionless'
-    ylocation.units='dimensionless'
-    
-    
-    # Global Attributes
-    dataset.Conventions ='CF1.8'
-    with open(parameterfile, "r") as myfile:
-        params=myfile.read()
-    myfile.close
-    dataset.description=params
-    if timeresolution!=False:
-        dataset.timeresolution=timeresolution
-
-    dataset.history = 'Created ' + str(datetime.now())
-    dataset.source = 'RainyDay Storm Catalog for scenario '+scenarioname+'. See description for SST file contents.'
-    dataset.missing='-9999.'
-    
-    # fill the netcdf file
-    latitudes[:]=latrange[::-1]
-    longitudes[:]=lonrange
-    catrain[np.isnan(catrain)]=-9999.
-    rainrate[:]=catrain[:,:,::-1,:] 
-    catmax[np.isnan(catmax)]=-9999.
-    basinrainfall[:]=catmax 
-    times[:]=cattime
-    xlocation[:]=catx
-    ylocation[:]=caty
-    gmask[:]=gridmask[::-1,:] 
-    domainmask[:]=dmask[::-1,:] 
-    dataset.close()
 
 
 def writeintensityfile(scenarioname,intenserain,filename,latrange,lonrange,intensetime):
