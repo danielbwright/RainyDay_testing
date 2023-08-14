@@ -496,6 +496,11 @@ try:
         if os.path.isdir(WriteName)==False:
             os.mkdir(WriteName)
         WriteName=WriteName+'/'+scenarioname
+        
+        # DBW 08142023: added this since we're going to be creating a huge number of scenario files and need ways of keeping them organized:
+        for i in range(0,nrealizations):
+            os.mkdir(WriteName+'/realization'+str(i+1))  # now there will be a directory of scenarios for each realization
+            
         print("RainyDay will write "+str(nrealizations)+" realizations times "+str(nsimulations)+" years worth of output precipitation scenarios. If this is a big number, this could be very slow!")
     elif Scenarios.lower()=='true' and areatype.lower()=="pointlist":
         print("You specified 'POINTAREA pointlist', but want precipitation scenario outputs. The 'pointlist option' does not support precipitation scenarios!")
@@ -2240,9 +2245,9 @@ if FreqAnalysis:
             maxy[:]=-9999
             maxstorm=np.empty((maxind.shape),dtype="int32")
             maxstorm[:]=-9999
-            if arfcorrection:
-                maxstep=np.empty((maxind.shape),dtype="int32")
-                maxstep[:]=-9999
+            # if arfcorrection:
+            #     maxstep=np.empty((maxind.shape),dtype="int32")
+            #     maxstep[:]=-9999
             if rotation:
                 maxangles=np.empty((maxind.shape),dtype="float32")
                 sortangle=np.empty((maxind.shape),dtype="float32")
@@ -2258,8 +2263,8 @@ if FreqAnalysis:
                 maxx[maxind==i]=np.squeeze(whichx[i,np.squeeze(maxind==i)])
                 maxy[maxind==i]=np.squeeze(whichy[i,np.squeeze(maxind==i)])
                 maxstorm[maxind==i]=np.squeeze(whichstorms[i,np.squeeze(maxind==i)])
-                if arfcorrection:
-                    maxstep[maxind==i]=np.squeeze(whichstep[i,np.squeeze(maxind==i)])
+                # if arfcorrection:
+                #     maxstep[maxind==i]=np.squeeze(whichstep[i,np.squeeze(maxind==i)])
                 
                 if rotation:
                     maxangles[maxind==i]=randangle[i,maxind==i]
@@ -2289,16 +2294,16 @@ if FreqAnalysis:
             sortx=np.empty((maxind.shape),dtype="int32")
             sorty=np.empty((maxind.shape),dtype="int32")
             sortstorms=np.empty((maxind.shape),dtype="int32")
-            if arfcorrection:
-                sortstep=np.empty((maxind.shape),dtype="int32")
+            # if arfcorrection:
+            #     sortstep=np.empty((maxind.shape),dtype="int32")
             
             
             for i in range(0,nrealizations):
                 sortx[:,i]=maxx[sortind[:,i],i]
                 sorty[:,i]=maxy[sortind[:,i],i]
                 sortstorms[:,i]=maxstorm[sortind[:,i],i]
-                if arfcorrection:
-                    sortstep[:,i]=maxstep[sortind[:,i],i]
+                # if arfcorrection:
+                #     sortstep[:,i]=maxstep[sortind[:,i],i]
                 if rotation:
                     sortangle[:,i]=maxangles[sortind[:,i],i]
                 if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
@@ -2306,10 +2311,12 @@ if FreqAnalysis:
             
                 
             # FIND THE TIMES:
-            if arfcorrection==False:
-                sorttimes=np.zeros((maxind.shape[0],maxind.shape[1],cattime.shape[1]),dtype="datetime64[m]")
-            else:       # using ARFANALYSIS
-                sorttimes=np.zeros((maxind.shape[0],maxind.shape[1],int(duration*60/rainprop.timeres)),dtype="datetime64[m]")
+            # if arfcorrection==False:
+            #     sorttimes=np.zeros((maxind.shape[0],maxind.shape[1],cattime.shape[1]),dtype="datetime64[m]")
+            # else:       # using ARFANALYSIS
+            #     sorttimes=np.zeros((maxind.shape[0],maxind.shape[1],int(duration*60/rainprop.timeres)),dtype="datetime64[m]")
+            
+            sorttimes=np.zeros((maxind.shape[0],maxind.shape[1],cattime.shape[1]),dtype="datetime64[m]")
             whichorigstorm=np.zeros((maxind.shape[0],maxind.shape[1]),dtype='int32')
             for i in range(0,nstorms):
                 if np.sum(np.squeeze(sortstorms==i))>0:
@@ -2347,8 +2354,8 @@ if FreqAnalysis:
                 exceedp=exceedp[reducedlevind]
                 sortx=sortx[reducedlevind,:]
                 sorty=sorty[reducedlevind,:]
-                if arfcorrection:
-                    sortstep=sortstep[reducedlevind,:]
+                # if arfcorrection:
+                #     sortstep=sortstep[reducedlevind,:]
 
                 whichorigstorm=whichorigstorm[reducedlevind,:]
                 if rotation:    
