@@ -166,6 +166,7 @@ try:
 except ValueError:
     sys.exit("You didn't specify CATALOGNAME!")
 
+    
 try:
     CreateCatalog=cardinfo["CREATECATALOG"]
 except Exception:
@@ -177,17 +178,23 @@ elif CreateCatalog.lower()=='false':
     CreateCatalog=False
 else:
     sys.exit("CreateCatalog must be either 'true' or 'false'!")
-
+if CreateCatalog:
+    try:
+        os.mkdir(wd + '/' + 'Storm_Catalog')
+    except OSError as exc:
+        if exc.errno != 17:   ### This checks the file exist error. '17' this is for file exist error.
+            raise
+        pass
 # if you are reusing a storm catalog, identify all the associated files and create a list of them:
 if CreateCatalog==False:
-    stormlist = glob.glob(catalogname + '*' + '.nc')
+    stormlist = sorted(glob.glob('Storm_Catalog/'+catalogname + '*' + '.nc'))
     if os.path.isfile(stormlist[0])==False:
         sys.exit("You need to create a storm catalog first.")
     else:
         print("Reading an existing storm catalog!")
         catrain,stormtime,latrange,lonrange,catx,caty,catmax,catmask,domainmask,cattime,timeres=RainyDay.readcatalog(stormlist[0])
-        yres=np.abs((np.array(latrange)[1:] - np.array(latrange)[:-1])).mean()
-        xres=np.abs((np.array(lonrange)[1:] - np.array(lonrange)[:-1])).mean()
+        yres=np.abs(latrange.diff(dim='latitude')).mean()
+        xres=np.abs(lonrange.diff(dim='longitude')).mean()
         catarea=[lonrange[0],lonrange[-1]+xres,latrange[-1]-yres,latrange[0]]
         if np.isclose(xres,yres)==False:
             sys.exit('RainyDay currently only supports equal x and y resolutions!')
@@ -417,8 +424,8 @@ if domain_type.lower()=='irregular':
         except Exception:
             print("Trouble finding the domain shapefile. Technically we don't need it, so we'll skip this part.")
 
-        yres=np.abs(np.mean(np.array(latrange)[1:]-np.array(latrange)[0:-1]))
-        xres=np.abs(np.mean(np.array(lonrange)[1:]-np.array(lonrange)[0:-1]))
+        yres=np.abs(latrange.diff(dim='latitude')).mean()
+        xres=np.abs(lonrange.diff(dim='longitude')).mean()
         inarea=np.array([lonrange[0],lonrange[-1]+res,latrange[-1]-res,latrange[0]])
 
     if ncfdom==False and shpdom==False and CreateCatalog:
@@ -886,8 +893,8 @@ if CreateCatalog:
             #catmask=catmask.reshape(ingridx.shape,order='F')
     elif areatype=="point":
         catmask=np.zeros((rainprop.subdimensions))
-        yind=np.where((latrange-ptlat)>0)[0][0]  # DBW 08082023: fixed this to account for the flipped north-south grid
-        xind=np.where((ptlon-lonrange)>0)[0][-1]  
+        yind=np.where((np.array(latrange)-ptlat)>0)[0][0]  # DBW 08082023: fixed this to account for the flipped north-south grid
+        xind=np.where((ptlon-np.array(lonrange))>0)[0][-1]  
         if xind==0 or yind==0 or yind==(len(latrange)-1) or xind==(len(lonrange)-1):
             sys.exit('the point you defined is too close to the edge of the box you defined!')
         else: 
@@ -897,8 +904,8 @@ if CreateCatalog:
         yind_list=np.zeros_like(ptlatlist,dtype='int32')
         xind_list=np.zeros_like(ptlatlist,dtype='int32')
         for pt in np.arange(0,npoints_list):
-            yind_list[pt]=np.where((latrange-ptlatlist[pt])>0)[0][0]  # DBW 08082023: fixed this to account for the flipped north-south grid
-            xind_list[pt]=np.where((ptlonlist[pt]-lonrange)>0)[0][-1]  
+            yind_list[pt]=np.where((np.array(latrange)-ptlatlist[pt])>0)[0][0]  # DBW 08082023: fixed this to account for the flipped north-south grid
+            xind_list[pt]=np.where((ptlonlist[pt]-np.array(lonrange))>0)[0][-1]  
         if np.any(yind_list==0) or np.any(xind_list==0) or np.any(yind_list==(len(latrange)-1)) or np.any(xind_list==(len(lonrange)-1)):
             sys.exit('the point you defined is too close to the edge of the box you defined!')
         else:
@@ -918,8 +925,8 @@ if CreateCatalog:
         
         if len(finelat[subindy])==1 and len(finelon[subindx])==1:
             catmask=np.zeros((rainprop.subdimensions))
-            yind=np.where((latrange-ptlat)>0)[0][-1]
-            xind=np.where((ptlon-lonrange)>0)[0][-1]  
+            yind=np.where((np.array(latrange)-ptlat)>0)[0][-1]
+            xind=np.where((ptlon-np.array(lonrange))>0)[0][-1]  
             if xind==0 or yind==0:
                 sys.exit('the point you defined is too close to the edge of the box you defined!')
             else:
@@ -1141,18 +1148,30 @@ if CreateCatalog:
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
             k += 1
-        storm_name = catalogname + str(i+1) +".nc"
+        storm_time = np.datetime_as_string(start_time, unit='D').replace("-","")
+        storm_name = 'Storm_Catalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
-        RainyDay.writecatalog_ash(scenarioname,catrain,\
+        try:
+            RainyDay.writecatalog_ash(scenarioname,catrain,\
                                   catmax,\
                                       catx,caty,\
                                           cattime,latrange,lonrange,\
                                               storm_name,catmask,parameterfile,domainmask,\
-                                                 nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)      
+                                                 nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)
+        except OSError as exc:
+            if exc.errno == 13:   ### This checks the permission error. ## '13' is error no for permission error.
+                os.remove(storm_name)
+                print("The file is removed to make way for a new file")
+                RainyDay.writecatalog_ash(scenarioname,catrain,\
+                                      catmax,\
+                                          catx,caty,\
+                                              cattime,latrange,lonrange,\
+                                                  storm_name,catmask,parameterfile,domainmask,\
+                                                     nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
 
-    stormlist = glob.glob(catalogname + '*' + '.nc')    
+    stormlist = sorted(glob.glob(catalogname + '*' + '.nc'))    
 #%%
 #################################################################################
 # STEP 2: RESAMPLING
