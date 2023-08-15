@@ -180,14 +180,14 @@ else:
     sys.exit("CreateCatalog must be either 'true' or 'false'!")
 if CreateCatalog:
     try:
-        os.mkdir(wd + '/' + 'Storm_Catalog')
+        os.mkdir(fullpath + '/StormCatalog')
     except OSError as exc:
         if exc.errno != 17:   ### This checks the file exist error. '17' this is for file exist error.
             raise
         pass
 # if you are reusing a storm catalog, identify all the associated files and create a list of them:
 if CreateCatalog==False:
-    stormlist = sorted(glob.glob('Storm_Catalog/'+catalogname + '*' + '.nc'))
+    stormlist = sorted(glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc'))
     if os.path.isfile(stormlist[0])==False:
         sys.exit("You need to create a storm catalog first.")
     else:
@@ -496,20 +496,24 @@ else:
 # do you want to write output scenarios in netcdf format, e.g. for flood frequency simulations?
 try:
     Scenarios=cardinfo["SCENARIOS"]
-    if Scenarios and areatype.lower()!="pointlist":
+    if Scenarios.lower()=='true' and areatype.lower()!="pointlist":
+        Scenarios=True
         FreqAnalysis=True
-        WriteName=wd+'/'+scenarioname+'/Realizations'
+        WriteName=fullpath+'/Realizations'
         #os.system('mkdir %s' %(WriteName))
         if os.path.isdir(WriteName)==False:
             os.mkdir(WriteName)
-        WriteName=WriteName+'/'+scenarioname
+        #WriteName=WriteName+'/'+scenarioname
         
         # DBW 08142023: added this since we're going to be creating a huge number of scenario files and need ways of keeping them organized:
         for i in range(0,nrealizations):
-            os.mkdir(WriteName+'/realization'+str(i+1))  # now there will be a directory of scenarios for each realization
+            if os.path.isdir(WriteName+'/realization'+str(i+1))==False:
+                os.mkdir(WriteName+'/realization'+str(i+1))  # now there will be a directory of scenarios for each realization
             
         print("RainyDay will write "+str(nrealizations)+" realizations times "+str(nsimulations)+" years worth of output precipitation scenarios. If this is a big number, this could be very slow!")
-    elif Scenarios.lower()=='true' and areatype.lower()=="pointlist":
+
+
+    elif Scenarios and areatype.lower()=="pointlist":
         print("You specified 'POINTAREA pointlist', but want precipitation scenario outputs. The 'pointlist option' does not support precipitation scenarios!")
         Scenarios=False
     else:
@@ -573,8 +577,6 @@ except Exception:
     calctype='ams'
     print("Nothing provided for CALCTYPE. Defaulting to Annual Maxima Series.")
 
-if calctype=='pds' and Scenarios:
-    sys.exit("Unfortunately, RainyDay currently only allows Partial Duration Series for rainfall frequency analysis, not for scenario writing. You can change CALCTYPE to 'AMS' and try again.")
 #
 #
 # # here is where we'll determine if you want to write more than one storm per year to realization files
@@ -584,15 +586,14 @@ if Scenarios and areatype.lower()!="pointlist":
         nperyear=cardinfo["NPERYEAR"]
         if nperyear!='false' or np.int(nperyear)!=1:
             print("RainyDay will output "+str(np.int(nperyear))+" storms per synthetic year! If this is a big number, this could be very slow!")
-            calctype='npyear'
             nperyear=np.int(nperyear)
             #if nperyear==1:
             #    nperyear='false'
     #        else:
     #            print("RainyDay will output "+str(nperyear)+" storms per synthetic year!")
     except Exception:
-        pass   
-    
+        print("You specified writing output scenarios, but didn't specify 'NPERYEAR'. Defaulting to 1 per year!")
+        nperyear=1
     
 #
 #
@@ -1149,7 +1150,7 @@ if CreateCatalog:
             current_datetime += rainprop.timeres 
             k += 1
         storm_time = np.datetime_as_string(start_time, unit='D').replace("-","")
-        storm_name = 'Storm_Catalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
+        storm_name = fullpath+'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         try:
             RainyDay.writecatalog_ash(scenarioname,catrain,\
@@ -1171,7 +1172,7 @@ if CreateCatalog:
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
 
-    stormlist = sorted(glob.glob(catalogname + '*' + '.nc'))    
+    stormlist = sorted(glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc'))    
 #%%
 #################################################################################
 # STEP 2: RESAMPLING
@@ -1542,10 +1543,10 @@ if DoDiagnostics:
         ax.set(xlabel=None,ylabel=None)
         ax.yaxis.set_major_formatter(lat_formatter)
         ax.set_title('Storm '+str(i+1)+': '+str(plottime[-1])
-                     +' Storm Total Rainfall\nMax Precipitation:'+str(np.round(catmax[i].to_numpy()))
-                     +' mm @ Lat/Lon:'+"{:6.1f}".format(np.array(plotlat[caty[i]])-(maskheight/2+maskheight%2)*rainprop.spatialres[0])
-                     +u'\N{DEGREE SIGN}'+','+"{:6.1f}".format(np.array(plotlon[catx[i]])
-                     +(maskwidth/2+maskwidth%2)*rainprop.spatialres[0])
+                     +' Storm Total Rainfall\nMax Precipitation:'+str(np.round(catmax[i]))
+                     +' mm @ Lat/Lon:'+"{:6.1f}".format(np.array(plotlat[caty[i]]-(maskheight/2+maskheight%2)*rainprop.spatialres[0]))
+                     +u'\N{DEGREE SIGN}'+','+"{:6.1f}".format(np.array(plotlon[catx[i]]
+                     +(maskwidth/2+maskwidth%2)*rainprop.spatialres[0]))
                      +u'\N{DEGREE SIGN}')
 
         plt.savefig(diagpath+'Storm'+str(i+1)+'_'+str(plottime[-1]).split('T')[0]+'.png',dpi=250)
@@ -1572,10 +1573,10 @@ if DoDiagnostics:
         fig.set_size_inches(6,4)
         ax.bar(np.arange(0,raints.shape[0]*rainprop.timeres/60.,rainprop.timeres/60.), raints)
         ax.set_title('Storm '+str(i+1)+': '+str(plottime[-1])
-                     +' Hyetograph\nMax Precipitation:'+str(np.round(catmax[i].to_numpy()))
-                     +' mm @ Lat/Lon:'+"{:6.1f}".format(plotlat[caty[i]]-(maskheight/2+maskheight%2)*rainprop.spatialres[0])
-                     +u'\N{DEGREE SIGN}'+','+"{:6.1f}".format(plotlon[catx[i]]
-                     +(maskwidth/2+maskwidth%2)*rainprop.spatialres[0])
+                     +' Hyetograph\nMax Precipitation:'+str(np.round(catmax[i]))
+                     +' mm @ Lat/Lon:'+"{:6.1f}".format(np.array(plotlat[caty[i]]-(maskheight/2+maskheight%2)*rainprop.spatialres[0]))
+                     +u'\N{DEGREE SIGN}'+','+"{:6.1f}".format(np.array(plotlon[catx[i]]
+                     +(maskwidth/2+maskwidth%2)*rainprop.spatialres[0]))
                      +u'\N{DEGREE SIGN}')
         ax.set_xlabel('Time [hours]')
         ax.set_ylabel('Precipitation Rate [mm/hr]')
@@ -1626,7 +1627,8 @@ if DoDiagnostics:
     #xplot_kernel.pltkernel.plot(x="lon",y="lat",cmap='Reds',cbar_kwargs={'orientation':orientation,'label':"Probability of storm occurrence [-]"})
         
     # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
-    plt.scatter(plotlon[catx]+(maskwidth/2)*rainprop.spatialres[0],plotlat[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax*2,facecolors='k',edgecolors='none',alpha=0.75)
+    for k in range(0,nstorms):
+        plt.scatter(plotlon[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],plotlat[caty[k]]-(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
 
     ax.add_feature(states_provinces)
     ax.set_xticks(np.linspace(outerextent[0],outerextent[1],2))
@@ -1777,7 +1779,8 @@ if FreqAnalysis:
         
     # resampling counts options:
     if samplingtype.lower()=='poisson':
-        lrate=len(catmax)/nyears*FrequencySens                  
+        #lrate=len(catmax)/nyears*FrequencySens 
+        lrate=len(catmax)/nyears        
         ncounts=np.random.poisson(lrate,(nsimulations,nrealizations))
         cntr=0
         #ncounts[ncounts==0]=1
@@ -1793,7 +1796,6 @@ if FreqAnalysis:
         ncounts=np.random.negative_binomial(rparam,pparam,size=(nsimulations,nrealizations)) 
         if calctype.lower()=='npyear' and np.mean(yrscount)<nperyear :   
             sys.exit("You specified to write multiple storms per year, but you specified a number that is too large relative to the resampling rate!")
-             	
     else:
         _,yrscount=np.unique(cattime[:,-1].astype('datetime64[Y]').astype(int)+1970,return_counts=True)
         if len(yrscount)<nyears:
@@ -2339,23 +2341,23 @@ if FreqAnalysis:
             whichorigstorm=np.zeros((maxind.shape[0],maxind.shape[1]),dtype='int32')
             for i in range(0,nstorms):
                 if np.sum(np.squeeze(sortstorms==i))>0:
-                    if arfcorrection==False:
-                        sorttimes[np.squeeze(sortstorms==i),:]=cattime[i,:]
+                    #if arfcorrection==False:
+                    sorttimes[np.squeeze(sortstorms==i),:]=cattime[i,:]
                         
-                    else:  # using ARFANALYSIS
-                        tstep=sortstep[np.squeeze(sortstorms==i),:]
-                        if len(tstep)>1:
-                            tempstep=np.squeeze(sortstep[np.squeeze(sortstorms==i),:])
-                            temptime=np.empty((tempstep.shape[0],int(duration*60/rainprop.timeres)),dtype="datetime64[m]")
-                            for j in range(0,tempstep.shape[0]):
-                                temptime[j,:]=cattime[i,tempstep[j]:tempstep[j]+int(duration*60/rainprop.timeres)]
-                        else:
-                            tempstep=sortstep[np.squeeze(sortstorms==i),:][0]
-                            temptime=np.empty((tempstep.shape[0],int(duration*60/rainprop.timeres)),dtype="datetime64[m]")
-                            for j in range(0,tempstep.shape[0]):
-                                temptime[j,:]=cattime[i,tempstep[j]:tempstep[j]+int(duration*60/rainprop.timeres)]
+                    # else:  # using ARFANALYSIS
+                    #     tstep=sortstep[np.squeeze(sortstorms==i),:]
+                    #     if len(tstep)>1:
+                    #         tempstep=np.squeeze(sortstep[np.squeeze(sortstorms==i),:])
+                    #         temptime=np.empty((tempstep.shape[0],int(duration*60/rainprop.timeres)),dtype="datetime64[m]")
+                    #         for j in range(0,tempstep.shape[0]):
+                    #             temptime[j,:]=cattime[i,tempstep[j]:tempstep[j]+int(duration*60/rainprop.timeres)]
+                    #     else:
+                    #         tempstep=sortstep[np.squeeze(sortstorms==i),:][0]
+                    #         temptime=np.empty((tempstep.shape[0],int(duration*60/rainprop.timeres)),dtype="datetime64[m]")
+                    #         for j in range(0,tempstep.shape[0]):
+                    #             temptime[j,:]=cattime[i,tempstep[j]:tempstep[j]+int(duration*60/rainprop.timeres)]
     
-                        sorttimes[np.squeeze(sortstorms==i),:]=temptime
+                    #     sorttimes[np.squeeze(sortstorms==i),:]=temptime
                     whichorigstorm[np.squeeze(sortstorms==i)]=modstormsno[i]+1
                 else:
                     continue
@@ -2441,271 +2443,318 @@ if FreqAnalysis:
     #################################################################################
     # STEP 3 (OPTIONAL): RAINFALL FREQUENCY ANALYSIS
     #################################################################################
-    
-    if calctype!='npyear':
-        print("preparing frequency analysis...")
-    
-        if areatype.lower()=='pointlist':
-            spreadmean=np.nanmean(sortrain,1)
-            
-            if spreadtype=='ensemble':
-                spreadmin=np.nanmin(sortrain,axis=1)
-                spreadmax=np.nanmax(sortrain,axis=1)    
-            else:
-                spreadmin=np.percentile(sortrain,(100-quantilecalc)/2,axis=1)
-                spreadmax=np.percentile(sortrain,quantilecalc+(100-quantilecalc)/2,axis=1)
-            
-            if spreadmean.shape[0]!=returnperiod.shape[0] or spreadmax.shape[0]!=returnperiod.shape[0] or spreadmean.shape[1]!=ptlatlist.shape[0]:
-                sys.exit("There is some dimension inconsistency in the pointlist scheme!")
-            
-            #fmean=open(FreqFile_mean,'w')
-            #fmin=open(FreqFile_min,'w')
-            #fmax=open(FreqFile_max,'w')
-            
-            #fmean.write('#prob.exceed,returnperiod,meanrain\n'+ptlistname+'\n')
-            #fmax.write('#prob.exceed,returnperiod,maxrain\n'+ptlistname+'\n')
-            #fmin.write('#prob.exceed,returnperiod,minrain\n'+ptlistname+'\n')
-    
-            freqanalysis_mean=np.column_stack((exceedp,returnperiod,spreadmean))
-            freqanalysis_min=np.column_stack((exceedp,returnperiod,spreadmin))
-            freqanalysis_max=np.column_stack((exceedp,returnperiod,spreadmax))
-            
-            outlat_line=np.append([-999.,-999.],ptlatlist)
-            outlon_line=np.append([-999.,-999.],ptlonlist)
-            coordline=np.row_stack((outlat_line,outlon_line))
-            freqanalysis_mean=np.row_stack((coordline,freqanalysis_mean))
-            freqanalysis_min=np.row_stack((coordline,freqanalysis_min))
-            freqanalysis_max=np.row_stack((coordline,freqanalysis_max))
-            
-            np.savetxt(FreqFile_mean,freqanalysis_mean,delimiter=',',header='prob.exceed,returnperiod,meanrain',fmt='%6.2f',comments='#',footer=ptlistname)
-            np.savetxt(FreqFile_min,freqanalysis_min,delimiter=',',header='prob.exceed,returnperiod,minrain',fmt='%6.2f',comments='#',footer=ptlistname)
-            np.savetxt(FreqFile_max,freqanalysis_max,delimiter=',',header='prob.exceed,returnperiod,maxrain',fmt='%6.2f',comments='#',footer=ptlistname)
-            
+
+    print("preparing frequency analysis...")
+
+    if areatype.lower()=='pointlist':
+        spreadmean=np.nanmean(sortrain,1)
+        
+        if spreadtype=='ensemble':
+            spreadmin=np.nanmin(sortrain,axis=1)
+            spreadmax=np.nanmax(sortrain,axis=1)    
         else:
-            if spreadtype=='ensemble':
-                spreadmin=np.nanmin(sortrain,axis=1)
-                spreadmax=np.nanmax(sortrain,axis=1)    
-            else:
-                spreadmin=np.percentile(sortrain,(100-quantilecalc)/2,axis=1)
-                spreadmax=np.percentile(sortrain,quantilecalc+(100-quantilecalc)/2,axis=1)
+            spreadmin=np.percentile(sortrain,(100-quantilecalc)/2,axis=1)
+            spreadmax=np.percentile(sortrain,quantilecalc+(100-quantilecalc)/2,axis=1)
         
-            freqanalysis=np.column_stack((exceedp,returnperiod,spreadmin,np.nanmean(sortrain,1),spreadmax))
-            
-            np.savetxt(FreqFile,freqanalysis,delimiter=',',header='prob.exceed,returnperiod,minrain,meanrain,maxrain',fmt='%6.2f',comments='')
-            
-            import matplotlib.patches as mpatches
-            from matplotlib.font_manager import FontProperties
-            from matplotlib import pyplot as plt
-           # warnings.filterwarnings('ignore')
-            fontP = FontProperties()
-            fontP.set_size('xx-small')
-            fig, ax = plt.subplots(1)
-            line1, = plt.plot(exceedp[exceedp<=0.5], RainyDay.np.nanmean(sortrain,1)[exceedp<=0.5], lw=1, label='Average', color='blue')
+        if spreadmean.shape[0]!=returnperiod.shape[0] or spreadmax.shape[0]!=returnperiod.shape[0] or spreadmean.shape[1]!=ptlatlist.shape[0]:
+            sys.exit("There is some dimension inconsistency in the pointlist scheme!")
         
-            ax.fill_between(exceedp[exceedp<=0.5], spreadmin[exceedp<=0.5], spreadmax[exceedp<=0.5], facecolor='dodgerblue', alpha=0.5,label='Ensemble Variability')
-            blue_patch = mpatches.Patch(color='dodgerblue', label='Spread')
-            plt.legend(handles=[line1,blue_patch],loc='lower right',prop = fontP)
+        #fmean=open(FreqFile_mean,'w')
+        #fmin=open(FreqFile_min,'w')
+        #fmax=open(FreqFile_max,'w')
         
-            if np.nanmax(spreadmax[exceedp<=0.5])<10.:
-                upperlimit=10.
-            elif np.nanmax(spreadmax[exceedp<=0.5])<100.:
-                upperlimit=100.
-            elif np.nanmax(spreadmax[exceedp<=0.5])<1000.:
-                upperlimit=1000.
-            else:
-                upperlimit=10000.
-                
-            if np.nanmin(spreadmin[exceedp<=0.5])<1.:
-                lowerlimit=0.1
-            elif np.nanmin(spreadmin[exceedp<=0.5])<10.:
-                lowerlimit=1 
-            elif np.nanmin(spreadmin[exceedp<=0.5])<100.:
-                lowerlimit=10. 
-            else:
-                lowerlimit=100.
-                    
-                    
-            plt.ylim(lowerlimit,upperlimit)
-            ax.set_xlabel('Annual Exceed. Prob. [-]\n1/(Return Period) [year]')
-            ax.set_ylabel('Precip. Depth [mm]')
-            ax.set_yscale('log')
-            ax.set_xscale('log')
-            plt.gca().invert_xaxis()
-            ax.grid()
-            plt.tight_layout()
-            plt.savefig(fullpath+'/'+scenarioname+'_FrequencyAnalysis.png',dpi=250)
-            plt.close('all')
+        #fmean.write('#prob.exceed,returnperiod,meanrain\n'+ptlistname+'\n')
+        #fmax.write('#prob.exceed,returnperiod,maxrain\n'+ptlistname+'\n')
+        #fmin.write('#prob.exceed,returnperiod,minrain\n'+ptlistname+'\n')
+
+        freqanalysis_mean=np.column_stack((exceedp,returnperiod,spreadmean))
+        freqanalysis_min=np.column_stack((exceedp,returnperiod,spreadmin))
+        freqanalysis_max=np.column_stack((exceedp,returnperiod,spreadmax))
+        
+        outlat_line=np.append([-999.,-999.],ptlatlist)
+        outlon_line=np.append([-999.,-999.],ptlonlist)
+        coordline=np.row_stack((outlat_line,outlon_line))
+        freqanalysis_mean=np.row_stack((coordline,freqanalysis_mean))
+        freqanalysis_min=np.row_stack((coordline,freqanalysis_min))
+        freqanalysis_max=np.row_stack((coordline,freqanalysis_max))
+        
+        np.savetxt(FreqFile_mean,freqanalysis_mean,delimiter=',',header='prob.exceed,returnperiod,meanrain',fmt='%6.2f',comments='#',footer=ptlistname)
+        np.savetxt(FreqFile_min,freqanalysis_min,delimiter=',',header='prob.exceed,returnperiod,minrain',fmt='%6.2f',comments='#',footer=ptlistname)
+        np.savetxt(FreqFile_max,freqanalysis_max,delimiter=',',header='prob.exceed,returnperiod,maxrain',fmt='%6.2f',comments='#',footer=ptlistname)
+        
     else:
-        print("You selected NPERYEAR greater than 1. RainyDay isn't configured to do a rainfall frequency analysis for this, but will write output scenarios. If you want a rainfall frequency analysis, set NPERYEAR to '1','false' or omit it from the .sst file!")
-       
+        if spreadtype=='ensemble':
+            spreadmin=np.nanmin(sortrain,axis=1)
+            spreadmax=np.nanmax(sortrain,axis=1)    
+        else:
+            spreadmin=np.percentile(sortrain,(100-quantilecalc)/2,axis=1)
+            spreadmax=np.percentile(sortrain,quantilecalc+(100-quantilecalc)/2,axis=1)
     
+        freqanalysis=np.column_stack((exceedp,returnperiod,spreadmin,np.nanmean(sortrain,1),spreadmax))
+        
+        np.savetxt(FreqFile,freqanalysis,delimiter=',',header='prob.exceed,returnperiod,minrain,meanrain,maxrain',fmt='%6.2f',comments='')
+        
+        import matplotlib.patches as mpatches
+        from matplotlib.font_manager import FontProperties
+        from matplotlib import pyplot as plt
+       # warnings.filterwarnings('ignore')
+        fontP = FontProperties()
+        fontP.set_size('xx-small')
+        fig, ax = plt.subplots(1)
+        line1, = plt.plot(exceedp[exceedp<=0.5], RainyDay.np.nanmean(sortrain,1)[exceedp<=0.5], lw=1, label='Average', color='blue')
+    
+        ax.fill_between(exceedp[exceedp<=0.5], spreadmin[exceedp<=0.5], spreadmax[exceedp<=0.5], facecolor='dodgerblue', alpha=0.5,label='Ensemble Variability')
+        blue_patch = mpatches.Patch(color='dodgerblue', label='Spread')
+        plt.legend(handles=[line1,blue_patch],loc='lower right',prop = fontP)
+    
+        if np.nanmax(spreadmax[exceedp<=0.5])<10.:
+            upperlimit=10.
+        elif np.nanmax(spreadmax[exceedp<=0.5])<100.:
+            upperlimit=100.
+        elif np.nanmax(spreadmax[exceedp<=0.5])<1000.:
+            upperlimit=1000.
+        else:
+            upperlimit=10000.
+            
+        if np.nanmin(spreadmin[exceedp<=0.5])<1.:
+            lowerlimit=0.1
+        elif np.nanmin(spreadmin[exceedp<=0.5])<10.:
+            lowerlimit=1 
+        elif np.nanmin(spreadmin[exceedp<=0.5])<100.:
+            lowerlimit=10. 
+        else:
+            lowerlimit=100.
+                
+                
+        plt.ylim(lowerlimit,upperlimit)
+        ax.set_xlabel('Annual Exceed. Prob. [-]\n1/(Return Period) [year]')
+        ax.set_ylabel('Precip. Depth [mm]')
+        ax.set_yscale('log')
+        ax.set_xscale('log')
+        plt.gca().invert_xaxis()
+        ax.grid()
+        plt.tight_layout()
+        plt.savefig(fullpath+'/'+scenarioname+'_FrequencyAnalysis.png',dpi=250)
+        plt.close('all')
+            
+        
     #################################################################################
     # STEP 4 (OPTIONAL): WRITE RAINFALL SCENARIOS
+    # this was heavily rewritten in August 2023 by DBW
+    # Not many fancy features survived that rewriting
     #################################################################################
 
-    subrangelat=latrange[ymin:ymax+1]
-    subrangelon=lonrange[xmin:xmax+1]
-    
-    if Scenarios and calctype!='npyear':
+    if Scenarios:
         print("writing spacetime precipitation scenarios...")
-        
-    if alllevels:
+        subrangelat=latrange[ymin:ymax+1]
+        subrangelon=lonrange[xmin:xmax+1]
         minind=RainyDay.find_nearest(returnperiod,RainfallThreshYear)
-        writemax=sortrain[minind:,:]
-        writex=sortx[minind:,:]
-        writey=sorty[minind:,:]
-        writestorm=sortstorms[minind:,:]
-        writeperiod=returnperiod[minind:]
-        writeexceed=exceedp[minind:]
-        writetimes=sorttimes[minind:,:]
-        whichorigstorm=whichorigstorm[minind:,:]
-        if rotation:
-            writeangle=sortangle[minind:,:]
-            binwriteang=np.digitize(writeangle.ravel(),angbins).reshape(writeangle.shape)
-        if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
-            writemultiplier=sortmultiplier[minind:,:]
-        #if arfcorrection:
-        #    writesteps=sortstep[minind:,:]
-    else:
-        writemax=sortrain
-        writex=sortx
-        writey=sorty
-        writestorm=sortstorms
-        writeperiod=returnperiod
-        writeexceed=exceedp
-        writetimes=sorttimes
-        #if arfcorrection:
-        #    writesteps=sortstep
-        if rotation:
-            writeangle=sortangle
-            binwriteang=np.digitize(writeangle.ravel(),angbins).reshape(writeangle.shape)
-        if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
-            writemultiplier=sortmultiplier
-
-    for rlz in range(0,nrealizations):
-        print("writing scenarios for realization "+str(rlz+1)+"/"+str(nrealizations))
         
-        # this statement is only really needed if you are prepending rainfall, but it is fast so who cares?
-        # if arfcorrection!=True:
-        #     outtime=np.empty((writetimes.shape[0],cattime.shape[1]),dtype='datetime64[m]')
-        #     unqstm=np.unique(writestorm[:,rlz])
-        #     for i in range(0,len(unqstm)):
-        #         outtime[np.squeeze(writestorm[:,rlz])==unqstm[i],:]=cattime[unqstm[i],:]
-        # else:
-            # I'm not sure why the above statements for outtime are needed, rather than the following line... I should have commented my code better back in 2015 or whenever I wrote that!
-        outtime=writetimes[:,rlz,:]
+        sortind=np.argsort(whichrain[:,:,:,0],axis=0)
+        whichrain=np.take_along_axis(np.squeeze(whichrain),sortind,axis=0)
+        whichstorms=np.take_along_axis(np.squeeze(whichstorms),sortind,axis=0)
         
-        if rotation:
-            if rescaletype=='stochastic':
-                sys.exit("not tested!")
-            # elif arfcorrection==True:
-            #     sys.exit("not tested!")
-            else:
-                outrain=RainyDay.SSTspin_write_v2(catrain,writex[:,rlz],writey[:,rlz],writestorm[:,rlz],nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,rlzanglebin=binwriteang[:,rlz],delarray=delarray,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
-        else:
-            if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
-                outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
-                for rl in range(0,outrain.shape[0]):
-                    outrain[rl,tlen:,:]=outrain[rl,tlen:,:]*writemultiplier[rl,rlz,0]
-            else:
-                outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
+        whichx=np.take_along_axis(np.squeeze(whichx),sortind,axis=0)
+        whichy=np.take_along_axis(np.squeeze(whichy),sortind,axis=0)
         
-        outrain[:,:,np.isclose(trimmask,0.)]=-9999.               # this line produced problems in CUENCAS CONVERSIONS :(
-        writename=WriteName+'_SSTrealizationAMS_rlz'+str(rlz+1)+'.nc'
+        whichstorms=whichstorms[-nperyear:,minind:,:]
+        writex=whichx[-nperyear:,minind:,:]
+        writey=whichy[-nperyear:,minind:,:]
         
+        # if rotation:
+        #     sys.exit("We haven't set this up yet after the major refactoring")
+        #     writeangle=sortangle[minind:,:]
+        #     binwriteang=np.digitize(writeangle.ravel(),angbins).reshape(writeangle.shape)
+        # if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
+        #     sys.exit("We haven't set this up yet after the major refactoring")
+        #     writemultiplier=sortmultiplier[minind:,:]       
+        
+        for i in np.arange(0,nstorms):
+            print("writing scenarios for storm "+str(i))
+            catrain,raintime,_,_,rainlocx,rainlocy,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
+            catrain = np.array(catrain)
+            catrain[np.less(catrain,0.)]=np.nan
+            howmanystorms=np.sum(whichstorms==i)        # how many transposed storms are due to parent storm i?
             
-        
-        #print "need to write angles to the realization files"
-        RainyDay.writerealization(scenarioname,rlz,nrealizations,writename,outrain,writemax[:,rlz],np.squeeze(writestorm[:,rlz]),writeperiod,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),outtime,subrangelat,subrangelon,whichorigstorm[:,rlz])
+            if howmanystorms>0:
+                stormindex=np.zeros_like(whichstorms) 
+                stormindex[:]=-999
+                stormindex[whichstorms==i]=np.arange(0,howmanystorms)    # this will assign a unique identifier to each transposed storm based on parent storm i
+                for k in np.arange(0,howmanystorms):
+                    tstorm,tyear,trealization=np.where(stormindex==k)
+                    name_scenariofile=fullpath+'/Scenarios/Realization'+str(trealization[0])+'/scenario_'+scenarioname+'_rlz'+str(trealization[0])+'year'+str(tyear[0])+'storm'+str(tstorm[0])+'.nc'
+                    #outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
+                    RainyDay.writescenariofile(catrain,raintime,rainlocx[i],rainlocy[i],name_scenariofile,tstorm,tyear,trealization,maskheight,maskwidth,subrangelat,subrangelon,scenarioname)
     
-    if calctype=='npyear':
-        # this code is adapted from Guo Yu's version of RainyDay
-        # this isn't pretty, but it works. It doesn't have all the functionality of the "1 per year" scenarios above.
-        print("Writing top N precipitation scenarios")
-            
-        if rescaletype=='none':
-            whichmultiplier=np.ones_like(whichrain)
+    
+    # if Scenarios and calctype!='npyear':
+    #     print("writing spacetime precipitation scenarios...")
+        
+    # if alllevels:
+    #     minind=RainyDay.find_nearest(returnperiod,RainfallThreshYear)
+    #     writemax=sortrain[minind:,:]
+    #     writex=sortx[minind:,:]
+    #     writey=sorty[minind:,:]
+    #     writestorm=sortstorms[minind:,:]
+    #     writeperiod=returnperiod[minind:]
+    #     writeexceed=exceedp[minind:]
+    #     writetimes=sorttimes[minind:,:]
+    #     whichorigstorm=whichorigstorm[minind:,:]
+    #     if rotation:
+    #         writeangle=sortangle[minind:,:]
+    #         binwriteang=np.digitize(writeangle.ravel(),angbins).reshape(writeangle.shape)
+    #     if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
+    #         writemultiplier=sortmultiplier[minind:,:]
+    #     #if arfcorrection:
+    #     #    writesteps=sortstep[minind:,:]
+    # else:
+    #     writemax=sortrain
+    #     writex=sortx
+    #     writey=sorty
+    #     writestorm=sortstorms
+    #     writeperiod=returnperiod
+    #     writeexceed=exceedp
+    #     writetimes=sorttimes
+    #     #if arfcorrection:
+    #     #    writesteps=sortstep
+    #     if rotation:
+    #         writeangle=sortangle
+    #         binwriteang=np.digitize(writeangle.ravel(),angbins).reshape(writeangle.shape)
+    #     if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
+    #         writemultiplier=sortmultiplier
 
-        for i in range(0,nrealizations):
-            print("writing scenarios for realization "+str(i+1)+"/"+str(nrealizations))
-            outrain_large = np.zeros((nsimulations,nperyear,int(catduration),maskheight,maskwidth),dtype='float32')
-            outrain_large[:] = -9999.
-            outtime_large =  np.empty((nsimulations,nperyear,int(catduration)),dtype='datetime64[m]')
-            outtime_large[:] =  np.datetime64(datetime(1900,1,1,0,0,0))
+    # for rlz in range(0,nrealizations):
+    #     print("writing scenarios for realization "+str(rlz+1)+"/"+str(nrealizations))
+        
+    #     # this statement is only really needed if you are prepending rainfall, but it is fast so who cares?
+    #     # if arfcorrection!=True:
+    #     #     outtime=np.empty((writetimes.shape[0],cattime.shape[1]),dtype='datetime64[m]')
+    #     #     unqstm=np.unique(writestorm[:,rlz])
+    #     #     for i in range(0,len(unqstm)):
+    #     #         outtime[np.squeeze(writestorm[:,rlz])==unqstm[i],:]=cattime[unqstm[i],:]
+    #     # else:
+    #         # I'm not sure why the above statements for outtime are needed, rather than the following line... I should have commented my code better back in 2015 or whenever I wrote that!
+    #     outtime=writetimes[:,rlz,:]
+        
+    #     if rotation:
+    #         if rescaletype=='stochastic':
+    #             sys.exit("not tested!")
+    #         # elif arfcorrection==True:
+    #         #     sys.exit("not tested!")
+    #         else:
+    #             outrain=RainyDay.SSTspin_write_v2(catrain,writex[:,rlz],writey[:,rlz],writestorm[:,rlz],nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,rlzanglebin=binwriteang[:,rlz],delarray=delarray,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
+    #     else:
+    #         if rescaletype=='stochastic' or rescaletype=='deterministic' or rescaletype=='dimensionless':
+    #             outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
+    #             for rl in range(0,outrain.shape[0]):
+    #                 outrain[rl,tlen:,:]=outrain[rl,tlen:,:]*writemultiplier[rl,rlz,0]
+    #         else:
+    #             outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
+        
+    #     outrain[:,:,np.isclose(trimmask,0.)]=-9999.               # this line produced problems in CUENCAS CONVERSIONS :(
+    #     writename=WriteName+'_SSTrealizationAMS_rlz'+str(rlz+1)+'.nc'
+        
             
-            rlz_rain = whichrain[:,:,i]*whichmultiplier[:,:,i]
-            rlz_whichstorms = whichstorms[:,:,i]
-            rlz_order = np.argsort(-rlz_rain,axis=0)
-            rlz_order[rlz_whichstorms<0]=-9999
         
-            rlz_whichx = whichx[:,:,i]
-            rlz_whichy = whichy[:,:,i]
+    #     #print "need to write angles to the realization files"
+    #     RainyDay.writerealization(scenarioname,rlz,nrealizations,writename,outrain,writemax[:,rlz],np.squeeze(writestorm[:,rlz]),writeperiod,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),outtime,subrangelat,subrangelon,whichorigstorm[:,rlz])
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    # if calctype=='npyear':
+    #     # this code is adapted from Guo Yu's version of RainyDay
+    #     # this isn't pretty, but it works. It doesn't have all the functionality of the "1 per year" scenarios above.
+    #     print("Writing top N precipitation scenarios")
+            
+    #     if rescaletype=='none':
+    #         whichmultiplier=np.ones_like(whichrain)
+
+    #     for i in range(0,nrealizations):
+    #         print("writing scenarios for realization "+str(i+1)+"/"+str(nrealizations))
+    #         outrain_large = np.zeros((nsimulations,nperyear,int(catduration),maskheight,maskwidth),dtype='float32')
+    #         outrain_large[:] = -9999.
+    #         outtime_large =  np.empty((nsimulations,nperyear,int(catduration)),dtype='datetime64[m]')
+    #         outtime_large[:] =  np.datetime64(datetime(1900,1,1,0,0,0))
+            
+    #         rlz_rain = whichrain[:,:,i]*whichmultiplier[:,:,i]
+    #         rlz_whichstorms = whichstorms[:,:,i]
+    #         rlz_order = np.argsort(-rlz_rain,axis=0)
+    #         rlz_order[rlz_whichstorms<0]=-9999
         
-            for j in range(0,nsimulations):
-                # loop through synthetic year
-                if np.sum(rlz_order[:,j]>=0) >= nperyear:
-                    n_largest = nperyear
-                else:
-                    n_largest = np.sum(rlz_order[:,j]>=0)
+    #         rlz_whichx = whichx[:,:,i]
+    #         rlz_whichy = whichy[:,:,i]
+        
+    #         for j in range(0,nsimulations):
+    #             # loop through synthetic year
+    #             if np.sum(rlz_order[:,j]>=0) >= nperyear:
+    #                 n_largest = nperyear
+    #             else:
+    #                 n_largest = np.sum(rlz_order[:,j]>=0)
                 
-                for k in range(0,n_largest):
+    #             for k in range(0,n_largest):
                     
-                    y1 = rlz_whichy[rlz_order[k,j],j][0][0]
-                    y2 = rlz_whichy[rlz_order[k,j],j][0][0]+ maskheight 
-                    x1 = rlz_whichx[rlz_order[k,j],j][0][0]
-                    x2 = rlz_whichx[rlz_order[k,j],j][0][0]+ maskwidth
+    #                 y1 = rlz_whichy[rlz_order[k,j],j][0][0]
+    #                 y2 = rlz_whichy[rlz_order[k,j],j][0][0]+ maskheight 
+    #                 x1 = rlz_whichx[rlz_order[k,j],j][0][0]
+    #                 x2 = rlz_whichx[rlz_order[k,j],j][0][0]+ maskwidth
                     
-                    sst_storm=rlz_whichstorms[rlz_order[k,j],j][0]
-                    if sst_storm<=0:
-                        continue
+    #                 sst_storm=rlz_whichstorms[rlz_order[k,j],j][0]
+    #                 if sst_storm<=0:
+    #                     continue
                     
-                    SST_rain = np.array(catrain[sst_storm,:,y1:y2,x1:x2])*whichmultiplier[rlz_order[k,j],j,i,0]
-                    SST_rain[:,np.isclose(trimmask,0.)]=-9999.
+    #                 SST_rain = np.array(catrain[sst_storm,:,y1:y2,x1:x2])*whichmultiplier[rlz_order[k,j],j,i,0]
+    #                 SST_rain[:,np.isclose(trimmask,0.)]=-9999.
                     
-                    outrain_large[j,k,:,:,:] = SST_rain[:]
-                    outtime_large[j,k,:] = cattime[sst_storm,:]
+    #                 outrain_large[j,k,:,:,:] = SST_rain[:]
+    #                 outtime_large[j,k,:] = cattime[sst_storm,:]
             
-            writename=WriteName+'_SSTrealization'+ str(n_largest) +'PYEAR_rlz'+str(i+1)+'.nc'
-            RainyDay.writerealization_nperyear(scenarioname,writename,i,nperyear,nrealizations,outrain_large,outtime_large,subrangelat,subrangelon,rlz_order,nsimulations)
+    #         writename=WriteName+'_SSTrealization'+ str(n_largest) +'PYEAR_rlz'+str(i+1)+'.nc'
+    #         RainyDay.writerealization_nperyear(scenarioname,writename,i,nperyear,nrealizations,outrain_large,outtime_large,subrangelat,subrangelon,rlz_order,nsimulations)
     
-            #### THIS COMMENTED SECTION CAN BE DELETED ONCE 'writerealization_nperyear()' is tested
-            # dataset=Dataset(filename, 'w', format='NETCDF4')
+    #         #### THIS COMMENTED SECTION CAN BE DELETED ONCE 'writerealization_nperyear()' is tested
+    #         # dataset=Dataset(filename, 'w', format='NETCDF4')
         
-            # # create dimensions
+    #         # # create dimensions
         
-            # outlats=dataset.createDimension('outlat',len(subrangelat))
-            # outlons=dataset.createDimension('outlon',len(subrangelon))
-            # time=dataset.createDimension('time',outtime_large.shape[2])
-            # nyears=dataset.createDimension('nyears',nsimulations)
-            # topN=dataset.createDimension('topN',nperyear)
+    #         # outlats=dataset.createDimension('outlat',len(subrangelat))
+    #         # outlons=dataset.createDimension('outlon',len(subrangelon))
+    #         # time=dataset.createDimension('time',outtime_large.shape[2])
+    #         # nyears=dataset.createDimension('nyears',nsimulations)
+    #         # topN=dataset.createDimension('topN',nperyear)
         
         
-            # # create variables
-            # times=dataset.createVariable('time',np.float64, ('nyears','topN','time'))
-            # latitudes=dataset.createVariable('latitude',np.float32, ('outlat'))
-            # longitudes=dataset.createVariable('longitude',np.float32, ('outlon'))
-            # rainrate=dataset.createVariable('rainrate',np.float32,('nyears','topN','time','outlat','outlon'),zlib=True,complevel=4,least_significant_digit=2)
-            # top_event=dataset.createVariable('top_event',np.int16, ('nyears'))
-            # # Global Attributes
+    #         # # create variables
+    #         # times=dataset.createVariable('time',np.float64, ('nyears','topN','time'))
+    #         # latitudes=dataset.createVariable('latitude',np.float32, ('outlat'))
+    #         # longitudes=dataset.createVariable('longitude',np.float32, ('outlon'))
+    #         # rainrate=dataset.createVariable('rainrate',np.float32,('nyears','topN','time','outlat','outlon'),zlib=True,complevel=4,least_significant_digit=2)
+    #         # top_event=dataset.createVariable('top_event',np.int16, ('nyears'))
+    #         # # Global Attributes
         
-            # dataset.history = 'Created ' + str(datetime.now())
+    #         # dataset.history = 'Created ' + str(datetime.now())
            
-            # # Variable Attributes (time since 1970-01-01 00:00:00.0 in numpys)
+    #         # # Variable Attributes (time since 1970-01-01 00:00:00.0 in numpys)
         
-            # rainrate.units = 'mm/h'
-            # times.units = 'minutes since 1970-01-01 00:00.0'
-            # times.calendar = 'gregorian'
+    #         # rainrate.units = 'mm/h'
+    #         # times.units = 'minutes since 1970-01-01 00:00.0'
+    #         # times.calendar = 'gregorian'
         
-            # # fill the netcdf file
-            # latitudes[:]=subrangelat
-            # longitudes[:]=subrangelon
-            # rainrate[:]=outrain_large 
-            # times[:]=outtime_large
-            # n_evnet = np.nansum(rlz_order>=0,axis=0)
-            # n_evnet[n_evnet>=nperyear]=nperyear
-            # top_event[:]= n_evnet
+    #         # # fill the netcdf file
+    #         # latitudes[:]=subrangelat
+    #         # longitudes[:]=subrangelon
+    #         # rainrate[:]=outrain_large 
+    #         # times[:]=outtime_large
+    #         # n_evnet = np.nansum(rlz_order>=0,axis=0)
+    #         # n_evnet[n_evnet>=nperyear]=nperyear
+    #         # top_event[:]= n_evnet
            
-            # dataset.close()
+    #         # dataset.close()
 else:
     print("skipping the frequency analysis!")
     

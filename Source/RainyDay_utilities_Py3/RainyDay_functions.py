@@ -1230,35 +1230,7 @@ def readcatalog(rfile) :
     else:
         return outrain,stormtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,cattime
 
-def readtimeresolution(rfile):
-    infile=Dataset(rfile,'r')
-    try:
-        timeresolution=np.int(infile.timeresolution)
-    except:
-        sys.exit("The time resolution of your storm catalog is ambiguous. This only appears in very specific circumstances. You can contact Dr. Daniel Wright if you need help!")
-    
-    return timeresolution
- 
 
-#==============================================================================
-# READ RAINFALL FILE FROM NETCDF: LEGACY VERSION! ONLY NEEDED IF READING AN OLDER DATASET
-#==============================================================================
-def readcatalog_LEGACY(rfile):
-    infile=Dataset(rfile,'r')
-    outrain=np.array(infile.variables['rainrate'][:])
-    outtime=np.array(infile.variables['time'][:],dtype='datetime64[m]')
-    outlatitude=np.array(infile.variables['latitude'][:])
-    outlongitude=np.array(infile.variables['longitude'][:])
-    outlocx=np.array(infile.variables['xlocation'][:])
-    outlocy=np.array(infile.variables['ylocation'][:])
-    outmax=np.array(infile.variables['basinrainfall'][:])
-    outmask=np.array(infile.variables['gridmask'][:])
-    #domainmask=np.array(infile.variables['domainmask'][:])
-    infile.close()
-    return outrain,outtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask
-
-
-    
 #==============================================================================
 # WRITE RAINFALL FILE TO NETCDF
 #==============================================================================
@@ -1290,17 +1262,22 @@ def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrang
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay Storm Catalog for scenario ' + scenarioname + '. See description for JSON file contents.'
 
-    data_vars = dict(rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
+    data_vars = dict(
+                     rain = (("time","latitude", "longitude"),catrain,{'units': rainrate_units, 'long_name': rainrate_name}),
+                    # rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
                      basinrainfall = (("storm_dim"),catmax.reshape(nstorms),{'units': basinrainfall_units, 'long_name': basinrainfall_name}),
                      xlocation = (("storm_dim"),catx.reshape(nstorms),{'units': 'dimensionless', 'long_name': xlocation_name}),
                      ylocation = (("storm_dim"),caty.reshape(nstorms),{'units': 'dimensionless', 'long_name': ylocation_name}),
                      cattime = (("storm_dim","time"), cattime),
-                     gridmask= (("latitude", "longitude"), gridmask[::-1, :],{'units': 'dimensionless', 'long_name': gmask_name}),
-                     domainmask = (("latitude", "longitude"),dmask[::-1, :],{'units': 'dimensionless', 'long_name': domainmask_name}),
+                     gridmask= (("latitude", "longitude"), gridmask,{'units': 'dimensionless', 'long_name': gmask_name}),
+                     domainmask = (("latitude", "longitude"),dmask,{'units': 'dimensionless', 'long_name': domainmask_name}),
+                     # gridmask= (("latitude", "longitude"), gridmask[::-1, :],{'units': 'dimensionless', 'long_name': gmask_name}),
+                     # domainmask = (("latitude", "longitude"),dmask[::-1, :],{'units': 'dimensionless', 'long_name': domainmask_name}),
                      timeresolution = ((), timeresolution) )
     coords = dict(time = ((times_name),cattime[storm_num,:]),
                   longitude = (("longitude"), lonrange.data , {'units': longitudes_units, 'long_name': longitudes_name}),
-                  latitude =  (("latitude"), latrange[::-1].data, {'units': latitudes_units, 'long_name': latitudes_name}),
+                  latitude =  (("latitude"), latrange.data, {'units': latitudes_units, 'long_name': latitudes_name}),
+                  #latitude =  (("latitude"), latrange[::-1].data, {'units': latitudes_units, 'long_name': latitudes_name}),
                   )
 
 
@@ -1420,6 +1397,52 @@ def writedomain(domain,mainpath,latrange,lonrange,parameterfile):
     dataset.description=params
     
     dataset.close()
+
+
+
+# =============================================================================
+# added DBW 08142023: writing single storm scenario file using xarray
+# =============================================================================
+def writescenariofile(catrain,raintime,rainlocx,rainlocy,name_scenariofile,tstorm,tyear,trealization,maskheight,maskwidth,subrangelat,subrangelon,scenarioname):
+    # the following line extracts only the transposed rainfall within the area of interest (not currently applying any mask,so this is extracting a rectangle)
+    transposedrain=catrain[:,rainlocy : (rainlocy+maskheight), rainlocx : (rainlocx+maskwidth)]  
+    
+    description_string='RainyDay storm scenario file for storm '+str(tstorm)+', year '+str(tyear)+', realization '+str(trealization)+', created from ' + scenarioname
+    latitudes_units,longitudes_units = 'degrees_north', 'degrees_east'
+    rainrate_units = 'mm hr^-1'
+    times_units, times_calendar = 'minutes since 1970-01-01 00:00.0' , 'gregorian'
+    
+    # Variable Names
+    times_name = 'time'                     ## change here
+    latitudes_name,longitudes_name  = 'latitude', 'longitude'
+    rainrate_name= 'precipitation rate'
+    xlocation_name, ylocation_name = 'x index of transposition', 'y index of transposition'
+    
+    history, missing = 'Created ' + str(datetime.now()), '-9999.'
+    source = 'RainyDay storm scenario file created from ' + scenarioname + '. See description for JSON file contents.'
+    
+    # 
+    data_vars = dict(
+                     rain = (("time","latitude", "longitude"),transposedrain,{'units': rainrate_units, 'long_name': rainrate_name}),
+                    # rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
+                     xlocation = (("storm_dim"),rainlocx,{'units': 'dimensionless', 'long_name': xlocation_name}),
+                     ylocation = (("storm_dim"),rainlocy,{'units': 'dimensionless', 'long_name': ylocation_name}),
+                     time = (("storm_dim","time"), raintime)),
+    coords = dict(time = ((times_name),raintime),
+                     longitude = (("longitude"), subrangelon.data , {'units': longitudes_units, 'long_name': longitudes_name}),
+                     latitude =  (("latitude"), subrangelat.data, {'units': latitudes_units, 'long_name': latitudes_name}),
+                     #latitude =  (("latitude"), latrange[::-1].data, {'units': latitudes_units, 'long_name': latitudes_name}),
+                  )
+    
+    attrs  = dict(history =history, source =  source, missing = missing, description = description_string,  calendar = times_calendar)
+    
+    scenario = xr.Dataset(data_vars = data_vars, coords = coords, attrs = attrs)
+    scenario.time.encoding['units'] = "minutes since 1970-01-01 00:00:00"
+    
+    scenario.to_netcdf(name_scenariofile)
+    scenario.close()    
+
+
 
 
 
