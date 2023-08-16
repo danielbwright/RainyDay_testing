@@ -1215,7 +1215,7 @@ def readcatalog(rfile) :
     outlongitude=infile['longitude']
     outlocx=np.array(infile['xlocation'])
     outlocy=np.array(infile['ylocation'])
-    outmax=infile['basinrainfall']
+    outmax=np.array(infile['basinrainfall'])
     cattime = np.array(infile['cattime'],dtype='datetime64[m]')
 
     try:
@@ -1237,7 +1237,7 @@ def readcatalog(rfile) :
 
 
 #RainyDay.writecatalog(scenarioname,catrain,catmax,catx,caty,cattime,latrange,lonrange,catalogname,nstorms,catmask,parameterfile,domainmask,timeresolution=rainprop.timeres)   
-def writecatalog_ash(scenarioname, catrain, catmax, catx, caty, cattime, latrange, lonrange, catalogname, gridmask,
+def writecatalog(scenarioname, catrain, catmax, catx, caty, cattime, latrange, lonrange, catalogname, gridmask,
                  parameterfile, dmask, nstorms, duration,storm_num,timeresolution=False):
 
     with open(parameterfile,'r') as f:
@@ -1401,11 +1401,28 @@ def writedomain(domain,mainpath,latrange,lonrange,parameterfile):
 
 
 # =============================================================================
+# added DBW 08152023: delete existing scenario files recursively before writing new ones
+# this was provided by ChatGPT
+# =============================================================================
+def delete_files_in_directory(directory_path):
+    for item in os.listdir(directory_path):
+        item_path = os.path.join(directory_path, item)
+        if os.path.isfile(item_path):
+            try:
+                os.remove(item_path)
+                print(f"Deleted: {item_path}")
+            except Exception as e:
+                print(f"Error deleting {item_path}: {e}")
+        elif os.path.isdir(item_path):
+            delete_files_in_directory(item_path)  # Recursively call the function for subdirectories
+
+
+# =============================================================================
 # added DBW 08142023: writing single storm scenario file using xarray
 # =============================================================================
 def writescenariofile(catrain,raintime,rainlocx,rainlocy,name_scenariofile,tstorm,tyear,trealization,maskheight,maskwidth,subrangelat,subrangelon,scenarioname):
     # the following line extracts only the transposed rainfall within the area of interest (not currently applying any mask,so this is extracting a rectangle)
-    transposedrain=catrain[:,rainlocy : (rainlocy+maskheight), rainlocx : (rainlocx+maskwidth)]  
+    transposedrain=catrain[:,rainlocy[0] : (rainlocy[0]+maskheight), rainlocx[0] : (rainlocx[0]+maskwidth)]  
     
     description_string='RainyDay storm scenario file for storm '+str(tstorm)+', year '+str(tyear)+', realization '+str(trealization)+', created from ' + scenarioname
     latitudes_units,longitudes_units = 'degrees_north', 'degrees_east'
@@ -1421,26 +1438,49 @@ def writescenariofile(catrain,raintime,rainlocx,rainlocy,name_scenariofile,tstor
     history, missing = 'Created ' + str(datetime.now()), '-9999.'
     source = 'RainyDay storm scenario file created from ' + scenarioname + '. See description for JSON file contents.'
     
-    # 
-    data_vars = dict(
-                     rain = (("time","latitude", "longitude"),transposedrain,{'units': rainrate_units, 'long_name': rainrate_name}),
-                    # rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
-                     xlocation = (("storm_dim"),rainlocx,{'units': 'dimensionless', 'long_name': xlocation_name}),
-                     ylocation = (("storm_dim"),rainlocy,{'units': 'dimensionless', 'long_name': ylocation_name}),
-                     time = (("storm_dim","time"), raintime)),
-    coords = dict(time = ((times_name),raintime),
-                     longitude = (("longitude"), subrangelon.data , {'units': longitudes_units, 'long_name': longitudes_name}),
-                     latitude =  (("latitude"), subrangelat.data, {'units': latitudes_units, 'long_name': latitudes_name}),
-                     #latitude =  (("latitude"), latrange[::-1].data, {'units': latitudes_units, 'long_name': latitudes_name}),
-                  )
+    data=xr.Dataset(
+         {
+                "rain": (["time","latitude", "longitude"], transposedrain),
+                "xlocation": (["scalar_dim"], rainlocx),
+                "ylocation": (["scalar_dim"], rainlocy)
+                #"scenariotime":(["time"],raintime)
+            },
+            coords={
+                "time": raintime,   
+                "latitude": subrangelat, 
+                "longitude": subrangelon,
+                "scalar_dim": [0]
+            },
+            attrs={
+            "history":history, 
+            "source" :  source, 
+            "missing" : missing, 
+            "description" : description_string,  
+            "calendar" : times_calendar    
+            }   
+    )
     
-    attrs  = dict(history =history, source =  source, missing = missing, description = description_string,  calendar = times_calendar)
+    # # 
+    # data_vars = dict(
+    #                  rain = (("time","latitude", "longitude"),transposedrain,{'units': rainrate_units, 'long_name': rainrate_name}),
+    #                 # rain = (("time","latitude", "longitude"),catrain[:, ::-1, :],{'units': rainrate_units, 'long_name': rainrate_name}),
+    #                  xlocation = (("scalar_dim"),[rainlocx],{'units': 'dimensionless', 'long_name': xlocation_name}),
+    #                  ylocation = (("scalar_dim"),[rainlocy],{'units': 'dimensionless', 'long_name': ylocation_name}),
+    #                  time = (("time"), raintime)),
+    # coords = dict(time = ((times_name),raintime),
+    #                  longitude = (("longitude"), subrangelon.data , {'units': longitudes_units, 'long_name': longitudes_name}),
+    #                  latitude =  (("latitude"), subrangelat.data, {'units': latitudes_units, 'long_name': latitudes_name}),
+    #                  scalar_dim=(("scalar_dim"),[0])
+    #                  #latitude =  (("latitude"), latrange[::-1].data, {'units': latitudes_units, 'long_name': latitudes_name}),
+    #               )
     
-    scenario = xr.Dataset(data_vars = data_vars, coords = coords, attrs = attrs)
-    scenario.time.encoding['units'] = "minutes since 1970-01-01 00:00:00"
+    #attrs  = dict(history =history, source =  source, missing = missing, description = description_string,  calendar = times_calendar)
     
-    scenario.to_netcdf(name_scenariofile)
-    scenario.close()    
+    #scenario = xr.Dataset(data_vars = data_vars, coords = coords, attrs = attrs)
+    #scenario.time.encoding['units'] = "minutes since 1970-01-01 00:00:00"
+    
+    data.to_netcdf(name_scenariofile)
+    data.close()    
 
 
 
