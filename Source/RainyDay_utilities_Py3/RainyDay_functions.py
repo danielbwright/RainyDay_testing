@@ -1398,7 +1398,31 @@ def writedomain(domain,mainpath,latrange,lonrange,parameterfile):
     
     dataset.close()
 
+# =============================================================================
+# added Ashar 08162023: To extract numbers from storm files.
+# =============================================================================
+def extract_storm_number(file_path, catalogname):
+    """
+    
 
+    Parameters
+    ----------
+    file_path : string
+        File path for the storms .nc files
+    catalogname : string
+        Name of the storm catalog given in JSON file
+
+    Returns
+    -------
+    integer
+        returns the storm number from the path given in "file_path".
+
+    """
+    base_name = os.path.basename(file_path)
+    match = re.search(catalogname +r'(\d+)', base_name)
+    if match:
+        return int(match.group(1))
+    return 0  
 
 # =============================================================================
 # added DBW 08152023: delete existing scenario files recursively before writing new ones

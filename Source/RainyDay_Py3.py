@@ -32,6 +32,7 @@ import scipy as sp
 import shapefile
 import math 
 import json
+import shutil
 from datetime import datetime
 import time  
 from copy import deepcopy
@@ -178,13 +179,13 @@ elif CreateCatalog.lower()=='false':
     CreateCatalog=False
 else:
     sys.exit("CreateCatalog must be either 'true' or 'false'!")
-if CreateCatalog:
-    try:
-        os.mkdir(fullpath + '/StormCatalog')
-    except OSError as exc:
-        if exc.errno != 17:   ### This checks the file exist error. '17' this is for file exist error.
-            raise
-        pass
+# if CreateCatalog:
+#     try:
+#         os.mkdir(fullpath + '/StormCatalog')
+#     except OSError as exc:
+#         if exc.errno != 17:   ### This checks the file exist error. '17' this is for file exist error.
+#             raise
+#         pass
 # if you are reusing a storm catalog, identify all the associated files and create a list of them:
 if CreateCatalog==False:
     stormlist = sorted(glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc'))
@@ -1116,7 +1117,9 @@ if CreateCatalog:
     caty=caty[sind]    
     catmax=catmax[sind]/mnorm*rainprop.timeres/60.
     # we might need something here that catches instances when NSTORMS is big, but the actual amount of data fed in isn't enough to find that many storms. This produced problems for me.
-    
+    if os.path.exists(scenarioname + '/Stormcatalog'):
+        shutil.rmtree(scenarioname + '/Stormcatalog')
+    os.mkdir(scenarioname + '/StormCatalog')
     
     # This part saves each storm as single file #
     print("Writing Storm Catalog!")
@@ -1150,7 +1153,7 @@ if CreateCatalog:
             current_datetime += rainprop.timeres 
             k += 1
         storm_time = np.datetime_as_string(start_time, unit='D').replace("-","")
-        storm_name = fullpath+'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
+        storm_name = scenarioname +'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         try:
             RainyDay.writecatalog(scenarioname,catrain,\
@@ -1172,14 +1175,13 @@ if CreateCatalog:
     end = time.time()   
     print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
 
-    stormlist = sorted(glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc'))    
+    stormlist = glob.glob(scenarioname+'/StormCatalog/'+catalogname + '*' + '.nc')
+    stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
 #%%
 #################################################################################
 # STEP 2: RESAMPLING
 #################################################################################
-   
-
-    
+       
 print("trimming storm catalog...")
 
 if CreateCatalog==False:
@@ -1206,7 +1208,7 @@ except Exception:
   
 if exclude !="none" and CreateCatalog==False:
     includestorms = np.array([True if i+1 not in exclude else False for i in range(len(stormlist))])
-    stormlist = [stormlist[i] for i in range(len(stormlist)) if i+1 not in exclude]
+    stormlist = [storm for storm in stormlist if RainyDay.extract_storm_number(storm, catalogname) not in exclude]
 elif exclude !="none" and CreateCatalog:
 		sys.exit("You are excluding storms from a new storm catalog, without inspecting them first. This seems like a bad idea.")
 else:
