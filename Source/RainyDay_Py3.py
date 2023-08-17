@@ -1153,7 +1153,7 @@ if CreateCatalog:
         storm_name = fullpath+'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         try:
-            RainyDay.writecatalog_ash(scenarioname,catrain,\
+            RainyDay.writecatalog(scenarioname,catrain,\
                                   catmax,\
                                       catx,caty,\
                                           cattime,latrange,lonrange,\
@@ -1163,7 +1163,7 @@ if CreateCatalog:
             if exc.errno == 13:   ### This checks the permission error. ## '13' is error no for permission error.
                 os.remove(storm_name)
                 print("The file is removed to make way for a new file")
-                RainyDay.writecatalog_ash(scenarioname,catrain,\
+                RainyDay.writecatalog(scenarioname,catrain,\
                                       catmax,\
                                           catx,caty,\
                                               cattime,latrange,lonrange,\
@@ -1605,7 +1605,7 @@ if DoDiagnostics:
     plot_kernel=np.row_stack([np.zeros((padtop,plot_kernel.shape[1])),plot_kernel,np.zeros((padbottom,plot_kernel.shape[1]))])
 
     xplot_kernel=xr.Dataset(
-        data_vars=dict(plot_kernel=(["y","x"],np.flipud(plot_kernel))),
+        data_vars=dict(plot_kernel=(["y","x"],plot_kernel)),
         coords=dict(
             lat=(["y"],plotlat),
             lon=(["x"],plotlon)),
@@ -1623,12 +1623,13 @@ if DoDiagnostics:
         
     if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
         ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
-    xplot_kernel.plot_kernel.plot(x="lon",y="lat",cmap='Reds',yincrease=False,cbar_kwargs={'orientation':orientation,'label':"Probability of storm occurrence [-]"})
+    xplot_kernel.plot_kernel.plot(x="lon",y="lat",cmap='Reds',cbar_kwargs={'orientation':orientation,'label':"Probability of storm occurrence [-]"})
     #xplot_kernel.pltkernel.plot(x="lon",y="lat",cmap='Reds',cbar_kwargs={'orientation':orientation,'label':"Probability of storm occurrence [-]"})
         
     # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
     for k in range(0,nstorms):
-        plt.scatter(plotlon[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],plotlat[caty[k]]-(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
+        plt.scatter(plotlon[catx[k]],plotlat[caty[k]],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
+        #plt.scatter(plotlon[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],plotlat[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
 
     ax.add_feature(states_provinces)
     ax.set_xticks(np.linspace(outerextent[0],outerextent[1],2))
@@ -1636,7 +1637,7 @@ if DoDiagnostics:
     ax.xaxis.set_major_formatter(lon_formatter)
 
 # Define the yticks for latitude
-    ax.set_yticks(np.linspace(outerextent[2],outerextent[3],2))
+    ax.set_yticks(np.linspace(outerextent[3],outerextent[2],2))
     lat_formatter = cticker.LatitudeFormatter()
     ax.set(xlabel=None,ylabel=None)
     ax.yaxis.set_major_formatter(lat_formatter)
@@ -1654,7 +1655,7 @@ if DoDiagnostics:
     outerextent=np.array(rainprop.subextent,dtype='float32')
     #avgrain=np.nansum(catrain,axis=(0,1))/nstorms*rainprop.timeres/60.
     xplot_avgrain=xr.Dataset(
-        data_vars=dict(avgrain=(["y","x"],np.flipud(mu_t))),
+        data_vars=dict(avgrain=(["y","x"],mu_t)),
         coords=dict(
             lat=(["y"],plotlat),
             lon=(["x"],plotlon)),
@@ -1674,7 +1675,8 @@ if DoDiagnostics:
 
     xplot_avgrain.avgrain.plot(x="lon",y="lat",cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
     # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
-    plt.scatter(plotlon[catx]+(maskwidth/2)*rainprop.spatialres[0],plotlat[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax*2,facecolors='k',edgecolors='none',alpha=0.75)
+    for k in range(0,nstorms):
+        plt.scatter(lonrange[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
 
     ax.add_feature(states_provinces)
     #ax.add_feature(coast_10m)
@@ -1702,7 +1704,7 @@ if DoDiagnostics:
     print("     Creating precipitation standard deviation map...")
 
     xplot_stdrain=xr.Dataset(
-        data_vars=dict(stdrain=(["y","x"],np.flipud(std_t))),
+        data_vars=dict(stdrain=(["y","x"],std_t)),
         coords=dict(
             lat=(["y"],plotlat),
             lon=(["x"],plotlon)),
@@ -1721,7 +1723,10 @@ if DoDiagnostics:
         ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
     xplot_stdrain.stdrain.plot(x="lon",y="lat",cmap='Greens',cbar_kwargs={'orientation':orientation,'label':"Standard Deviation Storm Total precipitation [mm]"})
     # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
-    plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax*2,facecolors='k',edgecolors='none',alpha=0.75)
+    for k in range(0,nstorms):
+        plt.scatter(lonrange[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
+
+
 
     ax.add_feature(states_provinces)
     #ax.add_feature(coast_10m)
@@ -2015,7 +2020,7 @@ if FreqAnalysis:
             whichy[whichstorms==i,0]=np.random.randint(0,np.int(rainprop.subdimensions[0])-maskheight+1,len(whichy[whichstorms==i]))
      
         # KERNEL-BASED AND INTENSITY-BASED RESAMPLING (ALSO NEEDED FOR IRREGULAR TRANSPOSITION DOMAINS)
-        elif transpotype=='kernel':
+        elif transpotype=='nonuniform':
             rndloc=np.array(np.random.random_sample(len(whichx[whichstorms==i])),dtype='float32')
             tempx=np.empty((len(rndloc)),dtype='int32')
             tempy=np.empty((len(rndloc)),dtype='int32')
@@ -2546,8 +2551,13 @@ if FreqAnalysis:
 
     if Scenarios:
         print("writing spacetime precipitation scenarios...")
-        subrangelat=latrange[ymin:ymax+1]
-        subrangelon=lonrange[xmin:xmax+1]
+        
+        # check if scenario files already exist there and if so, delete them:
+        if os.path.exists(fullpath+'/Realizations') and os.path.isdir(fullpath+'/Realizations'):
+            RainyDay.delete_files_in_directory(fullpath+'/Realizations')
+        
+        subrangelat=np.array(latrange[ymin:ymax+1])
+        subrangelon=np.array(lonrange[xmin:xmax+1])
         minind=RainyDay.find_nearest(returnperiod,RainfallThreshYear)
         
         sortind=np.argsort(whichrain[:,:,:,0],axis=0)
@@ -2570,7 +2580,7 @@ if FreqAnalysis:
         #     writemultiplier=sortmultiplier[minind:,:]       
         
         for i in np.arange(0,nstorms):
-            print("writing scenarios for storm "+str(i))
+            print("writing scenarios for storm "+str(i+1))
             catrain,raintime,_,_,rainlocx,rainlocy,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
             catrain = np.array(catrain)
             catrain[np.less(catrain,0.)]=np.nan
@@ -2582,9 +2592,12 @@ if FreqAnalysis:
                 stormindex[whichstorms==i]=np.arange(0,howmanystorms)    # this will assign a unique identifier to each transposed storm based on parent storm i
                 for k in np.arange(0,howmanystorms):
                     tstorm,tyear,trealization=np.where(stormindex==k)
-                    name_scenariofile=fullpath+'/Scenarios/Realization'+str(trealization[0])+'/scenario_'+scenarioname+'_rlz'+str(trealization[0])+'year'+str(tyear[0])+'storm'+str(tstorm[0])+'.nc'
+                    outx=writex[stormindex==k]
+                    outy=writey[stormindex==k]
+                    
+                    name_scenariofile=fullpath+'/Realizations/Realization'+str(trealization[0]+1)+'/scenario_'+scenarioname+'_rlz'+str(trealization[0]+1)+'year'+str(tyear[0]+1)+'storm'+str(tstorm[0]+1)+'.nc'
                     #outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
-                    RainyDay.writescenariofile(catrain,raintime,rainlocx[i],rainlocy[i],name_scenariofile,tstorm,tyear,trealization,maskheight,maskwidth,subrangelat,subrangelon,scenarioname)
+                    RainyDay.writescenariofile(catrain,raintime,outx,outy,name_scenariofile,tstorm[0],tyear[0],trealization[0],maskheight,maskwidth,subrangelat,subrangelon,scenarioname)
     
     
     # if Scenarios and calctype!='npyear':
