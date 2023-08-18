@@ -2573,6 +2573,9 @@ if FreqAnalysis:
         writex=whichx[-nperyear:,minind:,:]
         writey=whichy[-nperyear:,minind:,:]
         
+        writemask=trimmask
+        writemask[np.greater(trimmask,0.)]=1.   # we don't want fractional masks here
+        
         # if rotation:
         #     sys.exit("We haven't set this up yet after the major refactoring")
         #     writeangle=sortangle[minind:,:]
@@ -2599,8 +2602,13 @@ if FreqAnalysis:
                     
                     name_scenariofile=fullpath+'/Realizations/Realization'+str(trealization[0]+1)+'/scenario_'+scenarioname+'_rlz'+str(trealization[0]+1)+'year'+str(tyear[0]+1)+'storm'+str(tstorm[0]+1)+'.nc'
                     #outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
-                    RainyDay.writescenariofile(catrain,raintime,outx,outy,name_scenariofile,tstorm[0],tyear[0],trealization[0],maskheight,maskwidth,subrangelat,subrangelon,scenarioname)
+                    RainyDay.writescenariofile(catrain,raintime,outx,outy,name_scenariofile,tstorm[0],tyear[0],trealization[0],maskheight,maskwidth,subrangelat,subrangelon,scenarioname,writemask)
     
+    
+    
+    #testrain=np.nansum(np.multiply(catrain[:,21 : 21+maskheight, 29 : 29+maskwidth],trimmask),axis=(1,2))/mnorm 
+    
+    #np.nansum(np.multiply(plotrain[:,caty[i]:caty[i]+maskheight,catx[i]:catx[i]+maskwidth],trimmask),axis=(1,2))/mnorm
     
     # if Scenarios and calctype!='npyear':
     #     print("writing spacetime precipitation scenarios...")

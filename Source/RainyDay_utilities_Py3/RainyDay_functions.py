@@ -1434,7 +1434,7 @@ def delete_files_in_directory(directory_path):
         if os.path.isfile(item_path):
             try:
                 os.remove(item_path)
-                print(f"Deleted: {item_path}")
+                #print(f"Deleted: {item_path}")
             except Exception as e:
                 print(f"Error deleting {item_path}: {e}")
         elif os.path.isdir(item_path):
@@ -1444,9 +1444,9 @@ def delete_files_in_directory(directory_path):
 # =============================================================================
 # added DBW 08142023: writing single storm scenario file using xarray
 # =============================================================================
-def writescenariofile(catrain,raintime,rainlocx,rainlocy,name_scenariofile,tstorm,tyear,trealization,maskheight,maskwidth,subrangelat,subrangelon,scenarioname):
-    # the following line extracts only the transposed rainfall within the area of interest (not currently applying any mask,so this is extracting a rectangle)
-    transposedrain=catrain[:,rainlocy[0] : (rainlocy[0]+maskheight), rainlocx[0] : (rainlocx[0]+maskwidth)]  
+def writescenariofile(catrain,raintime,rainlocx,rainlocy,name_scenariofile,tstorm,tyear,trealization,maskheight,maskwidth,subrangelat,subrangelon,scenarioname,mask):
+    # the following line extracts only the transposed rainfall within the area of interest
+    transposedrain=np.multiply(catrain[:,rainlocy[0] : (rainlocy[0]+maskheight), rainlocx[0] : (rainlocx[0]+maskwidth)],mask)
     
     description_string='RainyDay storm scenario file for storm '+str(tstorm)+', year '+str(tyear)+', realization '+str(trealization)+', created from ' + scenarioname
     latitudes_units,longitudes_units = 'degrees_north', 'degrees_east'
