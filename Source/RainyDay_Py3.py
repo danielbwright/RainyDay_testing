@@ -540,9 +540,22 @@ except Exception:
 # # INCLUDE ONLY CERTAIN YEARS
 try:
     includeyr=cardinfo["INCLUDEYEARS"]
-    if includeyr.lower()!="all":
-        includeyears = includeyr
-    else:
+    if isinstance(includeyr , str):
+        if includeyr.lower == "all":
+            includeyears = False
+        elif ',' in includeyr:
+            includeyears = [year for year in includeyr.split(",")]
+        elif '-' in includeyr:
+            start_year, end_year = map(int, includeyr.split('-'))
+            includeyears = [year for year in range(start_year, end_year + 1)]
+        else:
+            includeyears = [np.int32(includeyr)]
+    elif isinstance(includeyr, list):
+        if len(includeyr) == 0:
+            includeyears = False
+        else:
+            includeyears = includeyr
+    else:    
         includeyears=False
 except Exception:
     includeyears=False
