@@ -13,7 +13,7 @@ import glob
 import matplotlib.pyplot as plt
 # Specify the path to the zip file
 storm_path = glob.glob(sys.argv[1])
-storm_yr = np.array([])
+storm_yr = np.array([],dtype='int32')
 storms = int(sys.argv[2])
 for storm in storm_path:
     storm = xr.open_dataset(storm)
