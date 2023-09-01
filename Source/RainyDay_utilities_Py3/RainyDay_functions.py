@@ -1230,6 +1230,24 @@ def readcatalog(rfile) :
     else:
         return outrain,stormtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,cattime
 
+def check_time(datetime_obj):
+    """
+    
+
+    Parameters
+    ----------
+    datetime_obj : numpy datetime object
+        Datetime object to check the time component of the object
+
+    Returns
+    -------
+    boolean
+        returns True if the datetime object is either '12:00:00' or '00:00:00' 
+        else false
+
+    """
+    time_str = str(datetime_obj).split('T')[1][:8]  # Extract the time part
+    return time_str == '00:00' or time_str == '12:00:00'
 
 #==============================================================================
 # WRITE RAINFALL FILE TO NETCDF
@@ -1425,6 +1443,22 @@ def extract_storm_number(file_path, catalogname):
     return 0  
 
 def extract_date(file_path, pattern):
+    """
+    
+
+    Parameters
+    ----------
+    file_path : string
+        File path for the storm catalog file
+    pattern : string
+        catalogname gievn in the JSON file
+
+    Returns
+    -------
+    string
+        returns the date of the storm catalog in the YYYYMMDD format(string)
+
+    """
     base_name = os.path.basename(file_path)
     match = re.search(pattern + r'\d+_(\d{8})\.nc', base_name)
     if match:

@@ -527,21 +527,21 @@ except Exception:
 #
 # # EXLCUDE CERTAIN MONTHS
 try:
-    excludemth=cardinfo["EXCLUDEMONTHS"]
-    if isinstance(excludemth, str):
-        if ',' in excludemth:
-            excludemth = [np.int32(exstorm) for exstorm in excludemth.split(",")]
-        elif '-' in excludemth:
-            start_year, end_year = map(int, excludemth.split('-'))
-            excludemth = [exstorm for exstorm in range(start_year, end_year + 1)]
-        elif excludemth.lower() == 'none':
-            excludemth = []
+    excludemonths=cardinfo["EXCLUDEMONTHS"]
+    if isinstance(excludemonths, str):
+        if ',' in excludemonths:  ## For different months to be exlcuded from the analysis
+            excludemonths = [np.int32(exstorm) for exstorm in excludemonths.split(",")]
+        elif '-' in excludemonths:   ## For a range of months of storms to exclude from the analysis
+            start_year, end_year = map(int, excludemonths.split('-'))
+            excludemonths = [exstorm for exstorm in range(start_year, end_year + 1)]
+        elif excludemonths.lower() == 'none': 
+            excludemonths = []
         else:
-            excludemth =[]
-    elif isinstance(excludemth, list):
-        excludemth = excludemth
+            excludemonths =[]
+    elif isinstance(excludemonths, list):
+        excludemonths = excludemonths
     else:
-        exclude = []
+        excludemonths = []
 except Exception:
     excludemonths=[]
 #
@@ -1144,6 +1144,7 @@ if CreateCatalog:
     os.mkdir(scenarioname + '/StormCatalog')
     
     # This part saves each storm as single file #
+    _,readtime,_,_ = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
     print("Writing Storm Catalog!")
     for i in range(nstorms):
         start_time = cattime[i,0]
@@ -1156,7 +1157,7 @@ if CreateCatalog:
         stm_file = None
         count = 0
         while current_datetime <= end_time:
-            if rainprop.timeres == np.float32(1440.):
+            if RainyDay.check_time(readtime[0]):
                 current_date = np.datetime_as_string(current_datetime, unit='D')
             else:
                 current_date = np.datetime_as_string(current_datetime - rainprop.timeres, unit='D')
