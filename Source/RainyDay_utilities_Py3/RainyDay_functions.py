@@ -1247,7 +1247,7 @@ def check_time(datetime_obj):
 
     """
     time_str = str(datetime_obj).split('T')[1][:8]  # Extract the time part
-    return time_str == '00:00' or time_str == '12:00:00'
+    return time_str == '00:00' or time_str == '12:00:00' or time_str == '00:00:00' or time_str =='12:00'
 
 #==============================================================================
 # WRITE RAINFALL FILE TO NETCDF
