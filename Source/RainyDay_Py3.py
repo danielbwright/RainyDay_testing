@@ -1509,6 +1509,7 @@ if DoDiagnostics:
     # =============================================================================
     #     redoing plotting to be consistent with 1 storm per file configuration
     # =============================================================================
+        
     for i in np.arange(0,nstorms):
         plotrain,plottime,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
         print("plotting diagnostics for storm "+str(i)+" out of "+str(nstorms))
@@ -1570,19 +1571,7 @@ if DoDiagnostics:
     
         
         # create hyetograph diagnostic plots:
-        try:
-            maplist=glob.glob(diagpath+'Hyetograph_Storm*.png')
-            for filePath in maplist:
-                try:
-                    os.remove(filePath)
-                except:
-                    print("Error while deleting file : ", filePath)
-                
-        except Exception:
-            pass
-    
-        #sys.exit("need to verify this")
-        # The following line is still not adequately tested, since catx, caty, and catmax aren't sorted
+        
         raints=np.nansum(np.multiply(plotrain[:,caty[i]:caty[i]+maskheight,catx[i]:catx[i]+maskwidth],trimmask),axis=(1,2))/mnorm
         fig = plt.figure()
         ax  = fig.add_subplot(111)
