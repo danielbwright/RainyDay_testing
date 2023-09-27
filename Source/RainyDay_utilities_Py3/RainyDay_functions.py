@@ -1201,7 +1201,7 @@ def readcatalog(rfile) :
     Returns
     -------
     arrays
-        This returns all the properties of a storm including storm rain array, storm time, storm depth, storm center and the extent of the transpositio domain.
+        returns all the properties of a storm including storm rain array, storm time, storm depth, storm center and the extent of the transpositio domain.
         The all storms cattime, catmax, catx and caty are also returned.
 
     """
@@ -1230,6 +1230,24 @@ def readcatalog(rfile) :
     else:
         return outrain,stormtime,outlatitude,outlongitude,outlocx,outlocy,outmax,outmask,domainmask,cattime
 
+def check_time(datetime_obj):
+    """
+    
+
+    Parameters
+    ----------
+    datetime_obj : numpy datetime object
+        Datetime object to check the time component of the object
+
+    Returns
+    -------
+    boolean
+        returns True if the datetime object is either '12:00:00' or '00:00:00' 
+        else false
+
+    """
+    time_str = str(datetime_obj).split('T')[1][:8]  # Extract the time part
+    return time_str == '00:00' or time_str == '12:00:00' or time_str == '00:00:00' or time_str =='12:00'
 
 #==============================================================================
 # WRITE RAINFALL FILE TO NETCDF
@@ -1421,9 +1439,31 @@ def extract_storm_number(file_path, catalogname):
     base_name = os.path.basename(file_path)
     match = re.search(catalogname +r'(\d+)', base_name)
     if match:
-        return int(match.group(1))
+        return np.int32(match.group(1))
     return 0  
 
+def extract_date(file_path, pattern):
+    """
+    
+
+    Parameters
+    ----------
+    file_path : string
+        File path for the storm catalog file
+    pattern : string
+        catalogname gievn in the JSON file
+
+    Returns
+    -------
+    string
+        returns the date of the storm catalog in the YYYYMMDD format(string)
+
+    """
+    base_name = os.path.basename(file_path)
+    match = re.search(pattern + r'\d+_(\d{8})\.nc', base_name)
+    if match:
+        return match.group(1)
+    return None
 # =============================================================================
 # added DBW 08152023: delete existing scenario files recursively before writing new ones
 # this was provided by ChatGPT
@@ -1535,6 +1575,27 @@ def try_parsing_date(text):
     
     
 def createfilelist(inpath, includeyears, excludemonths):
+    """
+    
+
+    Parameters
+    ----------
+    inpath : string
+        inpath takes in the file path for the rainfall data .nc files.
+    includeyears : list
+        includeyears are the years user want to include in the storm catalog analysis
+        Default: False
+    excludemonths : list
+        exludemonths are the list of months user want to exclude from the analysis
+        Default: none    
+    Returns
+    -------
+    new_list : list
+        returns the list of files including mentioned years and excluding described months
+    nyears : int
+        returns the lenght of years inlcuded in the analysis.
+
+    """
     flist = sorted(glob.glob(inpath))
     new_list = [] ; years = set()
     for file in flist:

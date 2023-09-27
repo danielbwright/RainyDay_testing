@@ -527,13 +527,21 @@ except Exception:
 #
 # # EXLCUDE CERTAIN MONTHS
 try:
-    exclude=cardinfo["EXCLUDEMONTHS"]
-    if type(exclude) == str:
-        if exclude.lower() == 'none':
-
-            excludemonths= []
+    excludemonths=cardinfo["EXCLUDEMONTHS"]
+    if isinstance(excludemonths, str):
+        if ',' in excludemonths:  ## For different months to be exlcuded from the analysis
+            excludemonths = [np.int32(exstorm) for exstorm in excludemonths.split(",")]
+        elif '-' in excludemonths:   ## For a range of months of storms to exclude from the analysis
+            start_year, end_year = map(int, excludemonths.split('-'))
+            excludemonths = [exstorm for exstorm in range(start_year, end_year + 1)]
+        elif excludemonths.lower() == 'none': 
+            excludemonths = []
+        else:
+            excludemonths =[]
+    elif isinstance(excludemonths, list):
+        excludemonths = excludemonths
     else:
-        excludemonths=exclude
+        excludemonths = []
 except Exception:
     excludemonths=[]
 #
@@ -544,9 +552,9 @@ try:
         if includeyr.lower == "all":
             includeyears = False
         elif ',' in includeyr:
-            includeyears = [year for year in includeyr.split(",")]
+            includeyears = [np.int32(year) for year in includeyr.split(",")]
         elif '-' in includeyr:
-            start_year, end_year = map(int, includeyr.split('-'))
+            start_year, end_year = map(np.int32, includeyr.split('-'))
             includeyears = [year for year in range(start_year, end_year + 1)]
         else:
             includeyears = [np.int32(includeyr)]
@@ -1136,6 +1144,7 @@ if CreateCatalog:
     os.mkdir(scenarioname + '/StormCatalog')
     
     # This part saves each storm as single file #
+    _,readtime,_,_ = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
     print("Writing Storm Catalog!")
     for i in range(nstorms):
         start_time = cattime[i,0]
@@ -1148,7 +1157,7 @@ if CreateCatalog:
         stm_file = None
         count = 0
         while current_datetime <= end_time:
-            if rainprop.timeres == np.float32(1440.):
+            if RainyDay.check_time(readtime[0]):
                 current_date = np.datetime_as_string(current_datetime, unit='D')
             else:
                 current_date = np.datetime_as_string(current_datetime - rainprop.timeres, unit='D')
@@ -1187,7 +1196,7 @@ if CreateCatalog:
                                                   storm_name,catmask,parameterfile,domainmask,\
                                                      nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)
     end = time.time()   
-    print("catalog timer: "+"{0:0.2f}".format((end - start)/60.)+" minutes")
+    print(f"catalog timer: {(end-start)/60.:0.2f} minutes")
 
     stormlist = glob.glob(scenarioname+'/StormCatalog/'+catalogname + '*' + '.nc')
     stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
@@ -1208,57 +1217,68 @@ origstormsno=np.arange(0,len(stormlist),dtype='int32')
 
 try:
     exclude=cardinfo["EXCLUDESTORMS"]
-    if type(exclude) == str:
-        exclude = 'none'
+    if isinstance(exclude, str):
+        if ',' in exclude:
+            exclude = [np.int32(exstorm) for exstorm in exclude.split(",")]
+        elif '-' in exclude:
+            start_year, end_year = map(int, exclude.split('-'))
+            exclude = [exstorm for exstorm in range(start_year, end_year + 1)]
+        elif exclude.lower() == 'none':
+            exclude = []
+        else:
+            exclude =[]
+    elif isinstance(exclude, list):
+        exclude = exclude
     else:
+        exclude = []
+    ## Check if storm numbe given in exlude exist in storm catalog.   
+    if len(exclude) > 0:
         for storms in exclude:
-            if 1 <= storms <= len(stormlist):
+            if storms in [RainyDay.extract_storm_number(storm, catalogname) for storm in stormlist]:
                 continue
             else:
                 sys.exit("something seems wrong! You are excluding storms that aren't in the catalog.")
 except Exception:
-    exclude='none'
+    exclude=[]
 
   
-if exclude !="none" and CreateCatalog==False:
-    includestorms = np.array([True if i+1 not in exclude else False for i in range(len(stormlist))])
-    stormlist = [storm for storm in stormlist if RainyDay.extract_storm_number(storm, catalogname) not in exclude]
-elif exclude !="none" and CreateCatalog:
+if len(exclude) != 0 and CreateCatalog==False:
+    includestorms = [True if RainyDay.extract_storm_number(storm, catalogname) not in exclude else False for storm in stormlist]
+    stormlist = [storm for storm in stormlist if RainyDay.extract_storm_number(storm, catalogname) not in exclude]  
+    catmax=catmax[includestorms]
+    catx=catx[includestorms]
+    caty=caty[includestorms]
+    cattime=cattime[includestorms,:]  
+elif len(exclude) != 0 and CreateCatalog:
 		sys.exit("You are excluding storms from a new storm catalog, without inspecting them first. This seems like a bad idea.")
 else:
     includestorms = np.ones((len(stormlist)),dtype="bool")
     
 # includestorms[np.isclose(catmax,0.)]=False   ## Do we need to check this
        
-# catrain=catrain[includestorms,:]   
-# catmax=catmax[includestorms]
-# catx=catx[includestorms]
-# caty=caty[includestorms]
-# cattime=cattime[includestorms,:]    
+  
 modstormsno=origstormsno[includestorms]  
 
 
 # EXCLUDE STORMS BY MONTH AND YEAR
 # THIS SECTION EXISTS IN CASE YOU WANT TO USE A PRE-EXISTING STORM CATALOG THAT HASN'T CONSIDERED ANY MONTH-BASED OR YEAR-BASED EXCLUSION
-if CreateCatalog==False:
-    catinclude=np.ones(len(stormlist),dtype="bool")
-    new_stormlist = []       
-    for ind, storm in enumerate(stormlist):
-        st_ds = xr.open_dataset(storm)
-        st_year = list(np.unique(st_ds.time[0].dt.year))[0]
-        st_month = list(np.unique(st_ds.time[0].dt.month))[0]
-        if includeyears == False:
-            if st_month not in excludemonths:
-                new_stormlist.append(storm)
-            else:
-                catinclude[ind] = False
-        else:
-            if st_year in includeyears and st_month not in excludemonths:
-               new_stormlist.append(storm)
-            else:
-              catinclude[ind] = False  
-                
-    stormlist = new_stormlist
+if CreateCatalog==False:  
+    if includeyears == False:
+        catinclude = [True if RainyDay.extract_date(storm, catalogname)[4:6]\
+                 not in excludemonths else False for storm in stormlist]
+        stormlist= [storm for storm in stormlist if np.int32(RainyDay.extract_date(storm, catalogname)\
+                    [4:6]) not in excludemonths]
+    else:
+        catinclude = [True if np.int32(RainyDay.extract_date(storm, catalogname)[:4])\
+                 in includeyears and np.int32(RainyDay.extract_date(storm, catalogname)[4:6])\
+                 not in excludemonths else False for storm in stormlist]
+        stormlist = [storm for storm in stormlist if np.int32(RainyDay.extract_date(storm, catalogname)\
+                    [4:6]) not in excludemonths and np.int32(RainyDay.extract_date(storm, catalogname)[:4])\
+                     in includeyears]  
+    catmax=catmax[catinclude]
+    catx=catx[catinclude]
+    caty=caty[catinclude]
+    cattime=cattime[catinclude,:] 
     nstorms_cat=len(stormlist)
     if defaultstorms:
         if nstorms_default<modstormsno.shape[0]:
@@ -1512,7 +1532,7 @@ if DoDiagnostics:
         
     for i in np.arange(0,nstorms):
         plotrain,plottime,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
-        print("plotting diagnostics for storm "+str(i)+" out of "+str(nstorms))
+        print("plotting diagnostics for storm "+str(i+1)+" out of "+str(nstorms))
         plotrain = np.array(plotrain) 
         temprain=np.nansum(plotrain,axis=0)*rainprop.timeres/60.
         temprain[np.less(temprain,0.)]=np.nan
@@ -1585,6 +1605,7 @@ if DoDiagnostics:
                      +u'\N{DEGREE SIGN}')
         ax.set_xlabel('Time [hours]')
         ax.set_ylabel('Precipitation Rate [mm/hr]')
+        plt.tight_layout()
         plt.savefig(diagpath+'Hyetograph_Storm'+str(i+1)+'_'+str(plottime[-1]).split('T')[0]+'.png',dpi=250)
         plt.close()
     
@@ -1649,7 +1670,7 @@ if DoDiagnostics:
     
     ax.set_title('Prob. of storm occurrence from\n'+catalogname.split('/')[-1]+'\nNOTE: The prob. map may not extend to lower/right edges. That is not a mistake!')
     #ax.axes.set_title(xlabel=None)
-    
+    plt.tight_layout()
     plt.savefig(diagpath+'ProbabilityOfStorms.png',dpi=250)
     # plt.show()
     plt.close()   
@@ -1697,7 +1718,7 @@ if DoDiagnostics:
     
     ax.set_title('Mean of Storm Catalog Rainfall from\n'+catalogname.split('/')[-1])
     #ax.axes.set_title(xlabel=None)
-    
+    plt.tight_layout()
     plt.savefig(diagpath+'MeanStormRain.png',dpi=250)
     # plt.show()
     plt.close()   
@@ -1747,7 +1768,7 @@ if DoDiagnostics:
     
     ax.set_title('Std. Dev. of Storm Catalog Rainfall from\n'+catalogname.split('/')[-1])
     #ax.axes.set_title(xlabel=None)
-    
+    plt.tight_layout()
     plt.savefig(diagpath+'StdDevStormRain.png',dpi=250)
     plt.close()   
     
@@ -1768,6 +1789,7 @@ if DoDiagnostics:
     ax.set_title('CDF of '+str(nstorms)+' Storm Catalog Entries')
     ax.set_xlabel('Storm Total Precipitation [mm]')
     ax.set_ylabel('Nonexceedance Probability [-]')
+    plt.tight_layout()
     plt.savefig(diagpath+'CDF_StormCatalog.png',dpi=250)
     plt.close()
     
