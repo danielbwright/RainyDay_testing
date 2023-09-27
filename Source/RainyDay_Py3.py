@@ -188,7 +188,7 @@ else:
 #         pass
 # if you are reusing a storm catalog, identify all the associated files and create a list of them:
 if CreateCatalog==False:
-    stormlist = glob.glob(scenarioname+'/StormCatalog/'+catalogname + '*' + '.nc')
+    stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc')
     stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
     if os.path.isfile(stormlist[0])==False:
         sys.exit("You need to create a storm catalog first.")
@@ -325,7 +325,6 @@ except Exception:
 
 #
 #
-# Use stochastic or deterministic ratio multiplier? This is an advanced option
 # it is not well documented yet, and is not recommended for normal users
 rescaletype='none'
 try:
@@ -416,15 +415,15 @@ if domain_type.lower()=='irregular':
         except Exception:
             pass
     else:
-        try:
-            domainshp=cardinfo["DOMAINSHP"]
-            if os.path.isfile(domainshp)==False:
-                sys.exit("can't find the transposition domain shapefile!")
-            else:
-                print("You selected 'irregular' for 'DOMAINTYPE', please note that if the domain shapefile is not in a regular lat/lon projection such as EPSG4326/WGS 84, the results will likely be incorrect!")
-                shpdom=True
-        except Exception:
-            print("Trouble finding the domain shapefile. Technically we don't need it, so we'll skip this part.")
+        # try:
+        #     domainshp=cardinfo["DOMAINSHP"]
+        #     if os.path.isfile(domainshp)==False:
+        #         sys.exit("can't find the transposition domain shapefile!")
+        #     else:
+        #         print("You selected 'irregular' for 'DOMAINTYPE', please note that if the domain shapefile is not in a regular lat/lon projection such as EPSG4326/WGS 84, the results will likely be incorrect!")
+        #         shpdom=True
+        # except Exception:
+        #     print("Trouble finding the domain shapefile. Technically we don't need it, so we'll skip this part.")
 
         yres=np.abs(latrange.diff(dim='latitude')).mean()
         xres=np.abs(lonrange.diff(dim='longitude')).mean()
@@ -461,7 +460,7 @@ except Exception:
 
 diagpath=fullpath+'/Diagnostics/'
 if DoDiagnostics==True:
-    if os.path.isdir(wd+scenarioname+'/Diagnostics')==False:
+    if os.path.isdir(fullpath+'/Diagnostics')==False:
         #os.system('mkdir %s' %(diagpath))
         try:
             os.mkdir(diagpath)
@@ -523,6 +522,18 @@ try:
 except Exception:
     Scenarios=False
     print("You didn't specify 'SCENARIOS', defaulting to 'false', no scenarios will be written!")
+    
+try:
+    padscenarios=cardinfo["PADSCENARIOS"]
+    if isinstance(padscenarios, int):
+        if padscenarios<0:
+           sys.exit("PADSCENARIOS is negative. That's pretty silly!") 
+    else:
+        sys.exit("PADSCENARIOS is not an integer! That's silly")
+except:
+    padscenarios=0         
+    
+    
 #
 #
 # # EXLCUDE CERTAIN MONTHS
@@ -1139,9 +1150,9 @@ if CreateCatalog:
     caty=caty[sind]    
     catmax=catmax[sind]/mnorm*rainprop.timeres/60.
     # we might need something here that catches instances when NSTORMS is big, but the actual amount of data fed in isn't enough to find that many storms. This produced problems for me.
-    if os.path.exists(scenarioname + '/Stormcatalog'):
-        shutil.rmtree(scenarioname + '/Stormcatalog')
-    os.mkdir(scenarioname + '/StormCatalog')
+    if os.path.exists(fullpath + '/Stormcatalog'):
+        shutil.rmtree(fullpath + '/Stormcatalog')
+    os.mkdir(fullpath + '/StormCatalog')
     
     # This part saves each storm as single file #
     _,readtime,_,_ = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
@@ -1176,7 +1187,7 @@ if CreateCatalog:
             current_datetime += rainprop.timeres 
             k += 1
         storm_time = np.datetime_as_string(start_time, unit='D').replace("-","")
-        storm_name = scenarioname +'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
+        storm_name = fullpath +'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         try:
             RainyDay.writecatalog(scenarioname,catrain,\
@@ -1198,7 +1209,7 @@ if CreateCatalog:
     end = time.time()   
     print(f"catalog timer: {(end-start)/60.:0.2f} minutes")
 
-    stormlist = glob.glob(scenarioname+'/StormCatalog/'+catalogname + '*' + '.nc')
+    stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc')
     stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
 #%%
 #################################################################################
@@ -2038,7 +2049,7 @@ if FreqAnalysis:
             catmax[i]=dur_max
             catx[i]=dur_x
             caty[i]=dur_y  
-            catrain=catrain[dur_j:dur_j+int(duration*60./rainprop.timeres),:]
+            catrain=catrain[dur_j:dur_j+int(duration*60./rainprop.timeres),:]  # I think this line is a problem-DBW 9/26/2023
             cattime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
         print('Resampling and transposing storm '+str(i+1)+' out of '+str(nstorms)+' ('"{0:0.0f}".format(100*(i+1)/nstorms)+'%)')
         # UNIFORM RESAMPLING
@@ -2601,6 +2612,7 @@ if FreqAnalysis:
         writemask=trimmask
         writemask[np.greater(trimmask,0.)]=1.   # we don't want fractional masks here
         
+        
         # if rotation:
         #     sys.exit("We haven't set this up yet after the major refactoring")
         #     writeangle=sortangle[minind:,:]
@@ -2614,6 +2626,12 @@ if FreqAnalysis:
             catrain,raintime,_,_,rainlocx,rainlocy,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
             catrain = np.array(catrain)
             catrain[np.less(catrain,0.)]=np.nan
+            if padscenarios>0:
+                padrain=np.zeros((np.int(padscenarios/(rainprop.timeres/60.)),catrain.shape[1],catrain.shape[2]),dtype='float32')
+                catrain=np.concatenate([catrain,padrain],axis=0)
+                padtime=np.arange(raintime[-1]+np.timedelta64(rainprop.timeres,'m'),raintime[-1]+np.timedelta64(rainprop.timeres,'m')*np.int(padscenarios/(rainprop.timeres/60.))+np.timedelta64(rainprop.timeres-1,'m'),np.timedelta64(rainprop.timeres,'m'))
+                raintime=np.concatenate([raintime,padtime])
+            
             howmanystorms=np.sum(whichstorms==i)        # how many transposed storms are due to parent storm i?
             
             if howmanystorms>0:
