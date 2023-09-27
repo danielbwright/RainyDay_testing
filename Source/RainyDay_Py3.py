@@ -50,7 +50,7 @@ numbacheck=True
 # plotting stuff, really only needed for diagnostic plots
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-# import RainyDay functions
+# import RainyDay_functions as RainyDay
 import RainyDay_utilities_Py3.RainyDay_functions as RainyDay
 
 import warnings
@@ -130,7 +130,7 @@ try:
     ### Cardinfo takes in the  'JSON' file parameters
     with open(parameterfile, 'r') as read_file:
         cardinfo = json.loads(read_file.read(), object_pairs_hook=RainyDay.dict_raise_on_duplicates)   # the "hook" catches instances of duplicate keys in the json file
-except :
+except FileNotFoundError:
     print("You either didn't specify a parameter file, or it doesn't exist on the source path given.")
 #%%
 
@@ -1131,8 +1131,16 @@ if CreateCatalog:
                     caty[minind]     =ycat
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
-            raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
+            raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)] 
+    proc_end = time.time()
+    print(f"catalog timer: {(proc_end-start)/60.:0.2f} minutes")
 #%%
+    if np.count_nonzero(catmax) < nstorms:
+        zero_ind = np.where(catmax ==0)[0][0]
+        catmax = catmax[0:zero_ind]
+        nstorms = zero_ind
+        print(f"The number of storms found are lesser than the storms defined in JSON, trimming the storm\
+              to {zero_ind} storms")
     sind=np.argsort(catmax)
     cattime=cattime[sind,:]
     catx=catx[sind]
