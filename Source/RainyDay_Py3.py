@@ -2050,7 +2050,7 @@ if FreqAnalysis:
             catx[i]=dur_x
             caty[i]=dur_y  
             catrain=catrain[dur_j:dur_j+int(duration*60./rainprop.timeres),:]  # I think this line is a problem-DBW 9/26/2023
-            cattime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
+            temptime[i,:]=cattime[i,dur_j:dur_j+int(duration*60./rainprop.timeres)]
         print('Resampling and transposing storm '+str(i+1)+' out of '+str(nstorms)+' ('"{0:0.0f}".format(100*(i+1)/nstorms)+'%)')
         # UNIFORM RESAMPLING
         if transpotype=='uniform' and domain_type=='rectangular':
@@ -2174,6 +2174,9 @@ if FreqAnalysis:
                         temprain,whichstep[whichstorms==i,pt]=RainyDay.SSTalt_singlecell(passrain,whichx[whichstorms==i,pt],whichy[whichstorms==i,pt],trimmask,1,1,durcheck=durcorrection)
                         whichrain[whichstorms==i,pt]=temprain*rainprop.timeres/60. 
 
+    if (durationcheck==False and durcorrection==False): 
+        cattime=temptime
+    
     if areatype.lower()=='pointlist' or areatype.lower()=='point':
         if len(arfval)==1 and np.isclose(arfval[0],1.):
             sortrain=whichrain*arfval
