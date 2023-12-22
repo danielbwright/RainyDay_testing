@@ -1541,6 +1541,7 @@ if DoDiagnostics:
         plotrain,plottime,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
         print("plotting diagnostics for storm "+str(i+1)+" out of "+str(nstorms))
         plotrain = np.array(plotrain) 
+        plotrain = np.where(plotrain < 0, np.nan, plotrain)
         temprain=np.nansum(plotrain,axis=0)*rainprop.timeres/60.
         temprain[np.less(temprain,0.)]=np.nan
         
