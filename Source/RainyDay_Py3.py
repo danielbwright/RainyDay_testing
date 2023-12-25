@@ -1553,7 +1553,7 @@ if DoDiagnostics:
     for i in np.arange(0,nstorms):
         plotrain,plottime,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
         print("plotting diagnostics for storm "+str(i+1)+" out of "+str(nstorms))
-        plotrain = plotrain.where(plotrain >= 0)
+        plotrain = plotrain.where(plotrain >= 0) ##Replace the missing flags
         temprain = plotrain.sum(dim = 'time', skipna =True) * rainprop.timeres / 60.0
         
         if i == 0:
@@ -1566,30 +1566,7 @@ if DoDiagnostics:
             if i > 1:
                 std_t = np.sqrt(M2 / i)
         
-        # print("plotting diagnostics for storm "+str(i+1)+" out of "+str(nstorms))
-        # plotrain = np.array(plotrain) 
-        # plotrain = np.where(plotrain < 0, np.nan, plotrain)
-        # temprain=np.nansum(plotrain,axis=0)*rainprop.timeres/60.
-        # temprain[np.less(temprain,0.)]=np.nan
         
-        # # calculate the updating mean and variance
-        # if i==0:
-        #     mu_t=temprain    
-        #     M2=0* temprain
-        # else:
-        #     oldmu=mu_t
-        #     mu_t=oldmu+(temprain-oldmu)/(i+1)    # from here: https://math.stackexchange.com/questions/106700/incremental-averaging
-        #     M2=M2+(temprain-oldmu)*(temprain-mu_t)                             # from here: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
-        #     if i>1:
-        #         std_t=np.sqrt(M2/i)    # note, should be i, not i+1 in the denominator
-        
-        # xplot_temprain=xr.Dataset(
-        #     data_vars=dict(temprain=(["y","x"],temprain)),
-        #     coords=dict(
-        #         lat=(["y"],plotlat),
-        #         lon=(["x"],plotlon)),
-        #     attrs=dict(description="diagnostic plotting of storm total rainfall"),
-        # )
         
         fig = plt.figure(figsize=(figsizex,figsizey))
         ax=plt.axes(projection=proj)
@@ -1601,7 +1578,6 @@ if DoDiagnostics:
         if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
             ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
             
-        # xplot_temprain.temprain.plot(x="lon",y="lat",cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Storm Total precipitation [mm]"}, ax=ax, zorder=1)
         temprain.plot(x='longitude', y ='latitude',cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Storm Total precipitation [mm]"}, ax=ax, zorder=1)
         circle = patches.Circle((plotlon[catx[i]], plotlat[caty[i]]), radius = 0.2, edgecolor='red', facecolor='none',zorder = 3)
         ax.add_patch(circle)
@@ -1719,15 +1695,6 @@ if DoDiagnostics:
     # PLOT AVERAGE STORM RAINFALL
     print ("     Creating mean precipitation map...")
     outerextent=np.array(rainprop.subextent,dtype='float32')
-    #avgrain=np.nansum(catrain,axis=(0,1))/nstorms*rainprop.timeres/60.
-    
-    # xplot_avgrain=xr.Dataset(
-    #     data_vars=dict(avgrain=(["y","x"],mu_t)),
-    #     coords=dict(
-    #         lat=(["y"],plotlat),
-    #         lon=(["x"],plotlon)),
-    #     attrs=dict(description="diagnostic plotting of the mean storm total rainfall"),
-    # )
     
     fig = plt.figure(figsize=(figsizex,figsizey))
     ax=plt.axes(projection=proj)
@@ -1740,8 +1707,6 @@ if DoDiagnostics:
     if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
         ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
     mu_t.plot(x='longitude', y ='latitude',cmap='Greens',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
-    # xplot_avgrain.avgrain.plot(x="lon",y="lat",cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
-    # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
     for k in range(0,nstorms):
         plt.scatter(lonrange[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
 
@@ -1769,14 +1734,6 @@ if DoDiagnostics:
     
     # PLOT STORM RAINFALL Standard deviation
     print("     Creating precipitation standard deviation map...")
-
-    # xplot_stdrain=xr.Dataset(
-    #     data_vars=dict(stdrain=(["y","x"],std_t)),
-    #     coords=dict(
-    #         lat=(["y"],plotlat),
-    #         lon=(["x"],plotlon)),
-    #     attrs=dict(description="diagnostic plotting of the std dev. of storm total rainfall"),
-    # )
     
     fig = plt.figure(figsize=(figsizex,figsizey))
     ax=plt.axes(projection=proj)
@@ -1788,8 +1745,7 @@ if DoDiagnostics:
         
     if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
         ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
-    # xplot_stdrain.stdrain.plot(x="lon",y="lat",cmap='Greens',cbar_kwargs={'orientation':orientation,'label':"Standard Deviation Storm Total precipitation [mm]"})
-    # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
+    
     std_t.plot(x='longitude', y ='latitude',cmap='Greys',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
     for k in range(0,nstorms):
         plt.scatter(lonrange[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
