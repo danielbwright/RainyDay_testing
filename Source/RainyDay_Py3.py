@@ -2020,16 +2020,8 @@ if FreqAnalysis:
             dur_y=0
             dur_j=0
             rainsum=np.zeros((rainprop.subdimensions[0]-maskheight+1,rainprop.subdimensions[1]-maskwidth+1),dtype='float32')
-
-            # I think the following commented block was wrong, but haven't fully tested the change-DBW 1/24/2020
-        #        if durcorrection:
-        #            catmax_subdur=np.zeros_like(catmax)
-        #            catx_subdur=np.zeros_like(catx)
-        #            caty_subdur=np.zeros_like(caty)
-        #            cattime_subdur=cattime
-
             temptime=np.empty((nstorms,int(duration*60/rainprop.timeres)),dtype='datetime64[m]')
-                #if (100*((i+1)%(nstorms//10)))==0:
+
             print('adjusting duration of storms, '+"{0:0.0f}".format(100*(i+1)/nstorms)+'% complete...')
             dur_max=0.
             for j in range(0,catrain.shape[0]-int(duration*60/rainprop.timeres)):
@@ -2629,6 +2621,7 @@ if FreqAnalysis:
             catrain,raintime,_,_,rainlocx,rainlocy,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
             catrain = np.array(catrain)
             catrain[np.less(catrain,0.)]=np.nan
+            
             if padscenarios>0:
                 padrain=np.zeros((np.int(padscenarios/(rainprop.timeres/60.)),catrain.shape[1],catrain.shape[2]),dtype='float32')
                 catrain=np.concatenate([catrain,padrain],axis=0)
