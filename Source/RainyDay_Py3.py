@@ -44,13 +44,14 @@ import glob
 import xarray as xr
 from cartopy.feature import ShapelyFeature
 import cartopy.mpl.ticker as cticker
+import matplotlib.patches as patches
 #from numba import njit, prange
 numbacheck=True
 
 # plotting stuff, really only needed for diagnostic plots
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-# import RainyDay functions
+# import RainyDay_functions as RainyDay
 import RainyDay_utilities_Py3.RainyDay_functions as RainyDay
 
 import warnings
@@ -130,7 +131,7 @@ try:
     ### Cardinfo takes in the  'JSON' file parameters
     with open(parameterfile, 'r') as read_file:
         cardinfo = json.loads(read_file.read(), object_pairs_hook=RainyDay.dict_raise_on_duplicates)   # the "hook" catches instances of duplicate keys in the json file
-except :
+except FileNotFoundError:
     print("You either didn't specify a parameter file, or it doesn't exist on the source path given.")
 #%%
 
@@ -428,7 +429,7 @@ if domain_type.lower()=='irregular':
         yres=np.abs(latrange.diff(dim='latitude')).mean()
         xres=np.abs(lonrange.diff(dim='longitude')).mean()
         inarea=np.array([lonrange[0],lonrange[-1]+res,latrange[-1]-res,latrange[0]])
-
+        domainshp=cardinfo["DOMAINSHP"]
     if ncfdom==False and shpdom==False and CreateCatalog:
         sys.exit("You selected 'irregular' for 'DOMAINTYPE', but didn't provide a shapefile or NetCDF file for the domain!")
 else:  ###### Ashar:  Dan I beleive we can remove this condition and add it to the if condition above, this may avoid extra condition.
@@ -1142,8 +1143,16 @@ if CreateCatalog:
                     caty[minind]     =ycat
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
-            raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)]     
+            raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)] 
+    proc_end = time.time()
+    print(f"catalog timer: {(proc_end-start)/60.:0.2f} minutes")
 #%%
+    if np.count_nonzero(catmax) < nstorms:
+        zero_ind = np.where(catmax ==0)[0][0]
+        catmax = catmax[0:zero_ind]
+        nstorms = zero_ind
+        print(f"The number of storms found are lesser than the storms defined in JSON, trimming the storm\
+              to {zero_ind} storms")
     sind=np.argsort(catmax)
     cattime=cattime[sind,:]
     catx=catx[sind]
@@ -1544,28 +1553,20 @@ if DoDiagnostics:
     for i in np.arange(0,nstorms):
         plotrain,plottime,_,_,_,_,_,_,_,_,_ = RainyDay.readcatalog(stormlist[i])
         print("plotting diagnostics for storm "+str(i+1)+" out of "+str(nstorms))
-        plotrain = np.array(plotrain) 
-        temprain=np.nansum(plotrain,axis=0)*rainprop.timeres/60.
-        temprain[np.less(temprain,0.)]=np.nan
+        plotrain = plotrain.where(plotrain >= 0) ##Replace the missing flags
+        temprain = plotrain.sum(dim = 'time', skipna =True) * rainprop.timeres / 60.0
         
-        # calculate the updating mean and variance
-        if i==0:
-            mu_t=temprain    
-            M2=0.
+        if i == 0:
+            mu_t = temprain    
+            M2 = temprain * 0.  # Initialize M2 as a DataArray with the same shape as temprain but all values set to 0.
         else:
-            oldmu=mu_t
-            mu_t=oldmu+(temprain-oldmu)/(i+1)    # from here: https://math.stackexchange.com/questions/106700/incremental-averaging
-            M2=M2+(temprain-oldmu)*(temprain-mu_t)                             # from here: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
-            if i>1:
-                std_t=np.sqrt(M2/i)    # note, should be i, not i+1 in the denominator
+            oldmu = mu_t
+            mu_t = oldmu + (temprain - oldmu) / (i + 1)
+            M2 = M2 + (temprain - oldmu) * (temprain - mu_t)
+            if i > 1:
+                std_t = np.sqrt(M2 / i)
         
-        xplot_temprain=xr.Dataset(
-            data_vars=dict(temprain=(["y","x"],np.flipud(temprain))),
-            coords=dict(
-                lat=(["y"],plotlat),
-                lon=(["x"],plotlon)),
-            attrs=dict(description="diagnostic plotting of storm total rainfall"),
-        )
+        
         
         fig = plt.figure(figsize=(figsizex,figsizey))
         ax=plt.axes(projection=proj)
@@ -1577,9 +1578,10 @@ if DoDiagnostics:
         if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
             ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
             
-        xplot_temprain.temprain.plot(x="lon",y="lat",cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Storm Total precipitation [mm]"}, ax=ax)
-
-        ax.add_feature(states_provinces)
+        temprain.plot(x='longitude', y ='latitude',cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Storm Total precipitation [mm]"}, ax=ax, zorder=1)
+        circle = patches.Circle((plotlon[catx[i]], plotlat[caty[i]]), radius = 0.2, edgecolor='red', facecolor='none',zorder = 3)
+        ax.add_patch(circle)
+        ax.add_feature(states_provinces, zorder = 2)
         #ax.add_feature(coast_10m)
         ax.set_xticks(np.linspace(outerextent[0],outerextent[1],2))
         lon_formatter = cticker.LongitudeFormatter()
@@ -1602,8 +1604,11 @@ if DoDiagnostics:
     
         
         # create hyetograph diagnostic plots:
-        
-        raints=np.nansum(np.multiply(plotrain[:,caty[i]:caty[i]+maskheight,catx[i]:catx[i]+maskwidth],trimmask),axis=(1,2))/mnorm
+        selected_region = plotrain.isel(latitude=slice(caty[i], caty[i] + maskheight), 
+                                longitude=slice(catx[i], catx[i] + maskwidth))
+        masked_data = selected_region * trimmask
+        raints = masked_data.sum(dim=('latitude', 'longitude'), skipna=True) / mnorm
+        # raints=np.nansum(np.multiply(plotrain[:,caty[i]:caty[i]+maskheight,catx[i]:catx[i]+maskwidth],trimmask),axis=(1,2))/mnorm
         fig = plt.figure()
         ax  = fig.add_subplot(111)
         fig.set_size_inches(6,4)
@@ -1690,14 +1695,6 @@ if DoDiagnostics:
     # PLOT AVERAGE STORM RAINFALL
     print ("     Creating mean precipitation map...")
     outerextent=np.array(rainprop.subextent,dtype='float32')
-    #avgrain=np.nansum(catrain,axis=(0,1))/nstorms*rainprop.timeres/60.
-    xplot_avgrain=xr.Dataset(
-        data_vars=dict(avgrain=(["y","x"],mu_t)),
-        coords=dict(
-            lat=(["y"],plotlat),
-            lon=(["x"],plotlon)),
-        attrs=dict(description="diagnostic plotting of the mean storm total rainfall"),
-    )
     
     fig = plt.figure(figsize=(figsizex,figsizey))
     ax=plt.axes(projection=proj)
@@ -1709,9 +1706,7 @@ if DoDiagnostics:
         
     if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
         ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
-
-    xplot_avgrain.avgrain.plot(x="lon",y="lat",cmap='Blues',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
-    # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
+    mu_t.plot(x='longitude', y ='latitude',cmap='Greens',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
     for k in range(0,nstorms):
         plt.scatter(lonrange[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
 
@@ -1739,14 +1734,6 @@ if DoDiagnostics:
     
     # PLOT STORM RAINFALL Standard deviation
     print("     Creating precipitation standard deviation map...")
-
-    xplot_stdrain=xr.Dataset(
-        data_vars=dict(stdrain=(["y","x"],std_t)),
-        coords=dict(
-            lat=(["y"],plotlat),
-            lon=(["x"],plotlon)),
-        attrs=dict(description="diagnostic plotting of the std dev. of storm total rainfall"),
-    )
     
     fig = plt.figure(figsize=(figsizex,figsizey))
     ax=plt.axes(projection=proj)
@@ -1758,8 +1745,8 @@ if DoDiagnostics:
         
     if domain_type.lower()=="irregular" and os.path.isfile(domainshp):
         ax.add_feature(domain_feature,edgecolor="black",facecolor="None")
-    xplot_stdrain.stdrain.plot(x="lon",y="lat",cmap='Greens',cbar_kwargs={'orientation':orientation,'label':"Standard Deviation Storm Total precipitation [mm]"})
-    # plt.scatter(lonrange[catx]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty]-(maskheight/2)*rainprop.spatialres[1],s=catmax/2,facecolors='k',edgecolors='none',alpha=0.75)
+    
+    std_t.plot(x='longitude', y ='latitude',cmap='Greys',cbar_kwargs={'orientation':orientation,'label':"Mean Storm Total precipitation [mm]"})
     for k in range(0,nstorms):
         plt.scatter(lonrange[catx[k]]+(maskwidth/2)*rainprop.spatialres[0],latrange[caty[k]]+(maskheight/2)*rainprop.spatialres[1],s=catmax[k]*2,facecolors='k',edgecolors='none',alpha=0.75)
 

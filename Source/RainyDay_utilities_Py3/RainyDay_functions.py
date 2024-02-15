@@ -194,7 +194,7 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 
 
 
-@jit(nopython=True,fastmath=True)  
+@jit(nopython=True, fastmath =  True)  
 def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
     rainsum[:]=0.
     halfheight=int32(np.ceil(maskheight/2))
@@ -1168,7 +1168,7 @@ def readnetcdf(rfile,variables,inbounds=False,dropvars=False):
     if dropvars==False:
         infile=xr.open_dataset(rfile)
     else:
-        infile=xr.open_dataset(rfile,drop_variables=dropvars)  # added DBW 07282023 to avoid reading in unnecessary variables
+        infile=xr.open_dataset(rfile, drop_variables=dropvars)  # added DBW 07282023 to avoid reading in unnecessary variables
     rain_name,lat_name,lon_name = variables.values()
     if np.any(inbounds!=False):
         latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
@@ -1205,8 +1205,8 @@ def readcatalog(rfile) :
         The all storms cattime, catmax, catx and caty are also returned.
 
     """
-    infile=xr.open_dataset(rfile, engine='h5netcdf')
-
+    # infile=xr.open_dataset(rfile, engine='h5netcdf')
+    infile=xr.open_dataset(rfile)
     outrain=infile['rain']
     outlatitude=infile['latitude']
     outmask=infile['gridmask']
