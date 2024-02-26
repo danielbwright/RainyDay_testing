@@ -846,6 +846,8 @@ def findsubbox(inarea,variables,fname):
     infile=xr.open_dataset(fname)
     latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
     rain_name,lat_name,lon_name = variables.values()
+    if max(infile[lon_name].values) > 180: # convert from positive degrees west to negative degrees west
+        infile[lon_name] = infile[lon_name] - 360 
     outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
                                               **{lon_name:slice(longmin,longmax)})
     outextent[2], outextent[3],outextent[0], outextent[1]=outrain[lat_name][0],outrain[lat_name][-1],\
