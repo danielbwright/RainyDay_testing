@@ -195,11 +195,11 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 
 
 @jit(nopython=True, fastmath =  True)  
-def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
+def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=1):
     rainsum[:]=0.
     halfheight=int32(np.ceil(maskheight/2))
     halfwidth=int32(np.ceil(maskwidth/2))
-    for i in range(0,ylen*xlen):
+    for i in range(0,ylen*xlen,stride):
         y=i//xlen
         x=i-y*xlen
         #print x,y
@@ -214,9 +214,9 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
 
 
 @jit(nopython=True)
-def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum):
+def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=1):
     rainsum[:]=0.
-    for i in range(0,(ylen)*(xlen)):
+    for i in range(0,(ylen)*(xlen),stride):
         y=i//xlen
         x=i-y*xlen
         #print x,y
