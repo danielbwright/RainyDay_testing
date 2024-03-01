@@ -795,6 +795,30 @@ try:
     timeseparation=cardinfo["TIMESEPARATION"]
 except Exception:
     timeseparation=0.
+<<<<<<< HEAD
+=======
+    
+    
+# Added 2/6/2024 by DBW
+# This reads in a daily-scale probability of probabilities that will be used when resampling storms
+try:
+    seasonfile=cardinfo["SEASONALSAMPLING"]
+    seasonalsampling=True
+    seasonaldata=np.genfromtxt(seasonfile, delimiter=',',skip_header=1)
+    seasonaldoy=np.array(seasonaldata[:,0],dtype='int16')
+    seasonaldate=np.zeros((len(seasonaldoy)),dtype='datetime64[D]')
+    for i in range(0,len(seasonaldate)):
+        seasonaldate[i]=RainyDay.day_of_year_to_datetime(1776,seasonaldoy[i])
+    if RainyDay.is_monotonic(seasonaldata[:,1]):
+        # if data is a cdf already
+        seasonalcdf=seasonaldata[:,1]/np.max(seasonaldata[:,1])
+    else:
+        # if data is a PMF
+        seasonalcdf=np.cumsum(seasonaldata[:,2])/np.max(seasonaldata[:,1])
+except Exception:
+    seasonalsampling=False    
+
+>>>>>>> 6a0b064 (Added option for sesonally-based resampling)
 
 
 #==============================================================================
@@ -1847,9 +1871,36 @@ if FreqAnalysis:
     
     
     # DOES THIS PROPERLY HANDLE STORM EXCLUSIONS???  I think so...
+<<<<<<< HEAD
     for i in range(0,np.nanmax(ncounts)):
         whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
     
+=======
+    # added 2/6/2024 DBW to support seasonally-dependent sampling
+    if seasonalsampling:
+        _,_,_,_,_,_,_,_,_,cattime,_ = RainyDay.readcatalog(stormlist[0])
+        cat_doy=np.zeros((2*cattime.shape[0]),dtype='datetime64[m]')
+        for i in range(0,cattime.shape[0]):
+            cat_doy[i]=RainyDay.replace_year(cattime[i,0],1776)
+        for i in range(cattime.shape[0],2*cattime.shape[0]):
+            cat_doy[i]=RainyDay.replace_year(cattime[i-cattime.shape[0],0],1777)
+            # convert date of storm (assumed to be the starttime of storm) into day of year, to be compared against the annual sampling CDF
+            #cat_doy[i]=(cattime[i,0] - np.datetime64(cattime[i,0].astype('datetime64[Y]'))).astype('timedelta64[D]').astype(int) + 1
+        for i in range(0,np.nanmax(ncounts)):
+            cdf_2d=seasonalcdf[:, np.newaxis]
+            cdf_2d = np.tile(cdf_2d, (1,len(ncounts[ncounts>=i+1]))) 
+            sampprob=np.random.rand(len(ncounts[ncounts>=i+1])) # why was this previously "nstorms-1"??? Bug?
+            sys.exit("need to finish this")
+            pdiff=cdf_2d-sampprob
+            pdiff[pdiff>0.]=999.
+            closest_day=np.argmin(cdf_2d-sampprob,axis=0)
+                 
+        
+    else:
+        for i in range(0,np.nanmax(ncounts)):
+            whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
+        
+>>>>>>> 6a0b064 (Added option for sesonally-based resampling)
     
     # the next three lines were commented out when adding the "pointlist" option
     #whichrain=np.zeros((whichstorms.shape),dtype='float32')

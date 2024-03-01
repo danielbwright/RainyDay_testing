@@ -1873,3 +1873,40 @@ def find_unique_elements(list1, list2):
     #unique_elements_in_list2 = [x for x in list2 if x not in list1]
     return unique_elements_in_list1
 
+
+#==============================================================================
+# 
+#==============================================================================
+def is_monotonic(arr):
+    return np.all(np.diff(arr) >= 0) or np.all(np.diff(arr) <= 0)
+
+
+#==============================================================================
+# 
+#==============================================================================
+def day_of_year_to_datetime(year, day_of_year):
+    # Create a datetime for the first day of the given year
+    start_of_year = np.datetime64(str(year), 'Y')
+
+    # Add the number of days to get to the desired day of the year
+    result = start_of_year + np.timedelta64(day_of_year - 1, 'D')
+
+    return result
+
+#==============================================================================
+# 
+#==============================================================================
+def replace_year(dt, new_year):
+    # Extract the time part from the datetime
+    time_part = dt - np.datetime64(dt, 'Y')
+
+    # Get the current year of the datetime
+    current_year = np.datetime64(dt, 'Y')
+
+    # Calculate the difference between the current year and the new year
+    year_diff = new_year - (current_year.astype(int)+1970)
+
+    # Add the difference to the datetime
+    result = np.datetime64(dt, 'Y') + np.timedelta64(year_diff, 'Y') + time_part
+
+    return result
