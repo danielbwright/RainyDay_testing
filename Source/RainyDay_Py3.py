@@ -51,8 +51,8 @@ numbacheck=True
 # plotting stuff, really only needed for diagnostic plots
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-# import RainyDay_functions as RainyDay
-import RainyDay_utilities_Py3.RainyDay_functions as RainyDay
+import RainyDay_functions as RainyDay
+# import RainyDay_utilities_Py3.RainyDay_functions as RainyDay
 
 import warnings
 warnings.filterwarnings("ignore")
