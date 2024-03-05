@@ -194,11 +194,30 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 
 
 
+# @jit(nopython=True, fastmath =  True)  
+# def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
+#     rainsum[:]=0.
+#     halfheight=int32(np.ceil(maskheight/2))
+#     halfwidth=int32(np.ceil(maskwidth/2))
+#     for i in range(0,ylen*xlen):
+#         y=i//xlen
+#         x=i-y*xlen
+#         #print x,y
+#         if np.any(np.equal(domainmask[y+halfheight,x:x+maskwidth],1.)) and np.any(np.equal(domainmask[y:y+maskheight,x+halfwidth],1.)):
+#             rainsum[y,x]=np.nansum(np.multiply(temparray[y:(y+maskheight),x:(x+maskwidth)],trimmask))
+#         else:
+#             rainsum[y,x]=0.
+#     #wheremax=np.argmax(rainsum)
+#     rmax=np.nanmax(rainsum)
+#     wheremax=np.where(np.equal(rainsum,rmax))
+#     return rmax, wheremax[0][0], wheremax[1][0]
+
 @jit(nopython=True, fastmath =  True)  
 def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=1):
     rainsum[:]=0.
     halfheight=int32(np.ceil(maskheight/2))
     halfwidth=int32(np.ceil(maskwidth/2))
+<<<<<<< HEAD
     for i in range(0,ylen*xlen,stride):
         y=i//xlen
         x=i-y*xlen
@@ -207,10 +226,48 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
             rainsum[y,x]=np.nansum(np.multiply(temparray[y:(y+maskheight),x:(x+maskwidth)],trimmask))
         else:
             rainsum[y,x]=0.
+=======
+    for y in range(0, ylen, 2):
+        for x in range(0, xlen, 2):
+        # Ensure that the slice does not exceed the bounds of temparray
+            if x + 1 + maskwidth <= temparray.shape[1] and y + maskheight <= temparray.shape[0]:
+                if np.any(np.equal(domainmask[y+halfheight, x:x+maskwidth], 1.)) and np.any(np.equal(domainmask[y:y+maskheight, x+halfwidth], 1.)):
+                    rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
+                    rainsum[y, x+1] = np.nansum(np.multiply(temparray[y:(y+maskheight), x+1:(x+1+maskwidth)], trimmask))
+                else:
+                    rainsum[y, x] = 0
+                    rainsum[y, x+1] = 0
+            else:
+                # Handle the case where the slice would exceed the array bounds
+                # You might set the values to 0, NaN, or use a different handling logic
+                rainsum[y, x] = 0  # or np.NaN, or any other value or method appropriate for your context
+                
+
+>>>>>>> 4a30ad3 (Optimizing catalognumba and readnetcdf)
     #wheremax=np.argmax(rainsum)
     rmax=np.nanmax(rainsum)
     wheremax=np.where(np.equal(rainsum,rmax))
     return rmax, wheremax[0][0], wheremax[1][0]
+
+# @jit(nopython=True, fastmath =  True)  
+# def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
+#     rainsum[:]=0.
+#     halfheight=int32(np.ceil(maskheight/2))
+#     halfwidth=int32(np.ceil(maskwidth/2))
+#     for y in range(0, ylen, 2):
+#         for x in range(0, xlen):
+#             if np.any(np.equal(domainmask[y+halfheight, x:x+maskwidth], 1.)) and np.any(np.equal(domainmask[y:y+maskheight, x+halfwidth], 1.)):
+#                 rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
+#             else:
+#                 rainsum[y, x] = 0
+                
+       
+            
+#     rmax=np.nanmax(rainsum)
+#     wheremax=np.where(np.equal(rainsum,rmax))
+#     return rmax, wheremax[0][0], wheremax[1][0]
+
+
 
 
 @jit(nopython=True)
@@ -1148,7 +1205,7 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 # READ RAINFALL FILE FROM NETCDF (ONLY FOR RAINYDAY NETCDF-FORMATTED DAILY FILES!
 #==============================================================================
 
-def readnetcdf(rfile,variables,inbounds=False,dropvars=False):
+def readnetcdf(rfile,variables,inbounds=False,dropvars=False,setup=False):
     """
     Used to trim the dataset with defined inbounds or transposition domain
 
@@ -1167,24 +1224,27 @@ def readnetcdf(rfile,variables,inbounds=False,dropvars=False):
         DESCRIPTION.
 
     """
-    if dropvars==False:
-        infile=xr.open_dataset(rfile)
-    else:
-        infile=xr.open_dataset(rfile, drop_variables=dropvars)  # added DBW 07282023 to avoid reading in unnecessary variables
+    infile = xr.open_dataset(rfile, drop_variables=dropvars) if dropvars else xr.open_dataset(rfile)  # added DBW 07282023 to avoid reading in unnecessary variables
     rain_name,lat_name,lon_name = variables.values()
+    if max(infile[lon_name].values) > 180: # convert from positive degrees west to negative degrees west
+        infile[lon_name] = infile[lon_name] - 360 
     if np.any(inbounds!=False):
         latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
         outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
                                                   **{lon_name:slice(longmin,longmax)})
-        outlatitude=outrain[lat_name]
-        outlongitude=outrain[lon_name]        
     else:
         outrain=infile[rain_name]
-        outlatitude=outrain[lat_name]
-        outlongitude=outrain[lat_name] 
+    outlatitude=outrain[lat_name]
+    outlongitude=outrain[lat_name] 
     outtime=np.array(infile['time'],dtype='datetime64[m]')
     infile.close()
-    return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
+    if setup:
+        return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
+    else:
+        return outrain,outtime
+    
+
+  
   
 #==============================================================================
 # READ RAINFALL FILE FROM NETCDF
@@ -1643,7 +1703,7 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
         droplist=find_unique_elements(inds.keys(),keepvars) # droplist will be passed to the 'drop_variables=' in xr.open_dataset within the storm catalog creation loop in RainyDay
         inds.close()
         
-        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables,dropvars=droplist)
+        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables,dropvars=droplist,setup=True)
 
     if len(inlatitude.shape)>1 or len(inlongitude.shape)>1:
         sys.exit("RainyDay isn't set up for netcdf files that aren't on a regular lat/lon grid!")
