@@ -217,16 +217,6 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
     rainsum[:]=0.
     halfheight=int32(np.ceil(maskheight/2))
     halfwidth=int32(np.ceil(maskwidth/2))
-<<<<<<< HEAD
-    for i in range(0,ylen*xlen,stride):
-        y=i//xlen
-        x=i-y*xlen
-        #print x,y
-        if np.any(np.equal(domainmask[y+halfheight,x:x+maskwidth],1.)) and np.any(np.equal(domainmask[y:y+maskheight,x+halfwidth],1.)):
-            rainsum[y,x]=np.nansum(np.multiply(temparray[y:(y+maskheight),x:(x+maskwidth)],trimmask))
-        else:
-            rainsum[y,x]=0.
-=======
     for y in range(0, ylen, 2):
         for x in range(0, xlen, 2):
         # Ensure that the slice does not exceed the bounds of temparray
@@ -242,8 +232,6 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
                 # You might set the values to 0, NaN, or use a different handling logic
                 rainsum[y, x] = 0  # or np.NaN, or any other value or method appropriate for your context
                 
-
->>>>>>> 4a30ad3 (Optimizing catalognumba and readnetcdf)
     #wheremax=np.argmax(rainsum)
     rmax=np.nanmax(rainsum)
     wheremax=np.where(np.equal(rainsum,rmax))
