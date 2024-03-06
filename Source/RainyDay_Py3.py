@@ -795,10 +795,7 @@ try:
     timeseparation=cardinfo["TIMESEPARATION"]
 except Exception:
     timeseparation=0.
-<<<<<<< HEAD
-=======
-    
-    
+
 # Added 2/6/2024 by DBW
 # This reads in a daily-scale probability of probabilities that will be used when resampling storms
 try:
@@ -817,8 +814,6 @@ try:
         seasonalcdf=np.cumsum(seasonaldata[:,2])/np.max(seasonaldata[:,1])
 except Exception:
     seasonalsampling=False    
-
->>>>>>> 6a0b064 (Added option for sesonally-based resampling)
 
 
 #==============================================================================
@@ -1871,11 +1866,8 @@ if FreqAnalysis:
     
     
     # DOES THIS PROPERLY HANDLE STORM EXCLUSIONS???  I think so...
-<<<<<<< HEAD
     for i in range(0,np.nanmax(ncounts)):
         whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
-    
-=======
     # added 2/6/2024 DBW to support seasonally-dependent sampling
     if seasonalsampling:
         _,_,_,_,_,_,_,_,_,cattime,_ = RainyDay.readcatalog(stormlist[0])
@@ -1898,9 +1890,7 @@ if FreqAnalysis:
         
     else:
         for i in range(0,np.nanmax(ncounts)):
-            whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
-        
->>>>>>> 6a0b064 (Added option for sesonally-based resampling)
+            whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug
     
     # the next three lines were commented out when adding the "pointlist" option
     #whichrain=np.zeros((whichstorms.shape),dtype='float32')
