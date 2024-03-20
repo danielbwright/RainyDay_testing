@@ -858,7 +858,7 @@ if CreateCatalog:
     #==============================================================================
     # 'subgrid' defines the transposition domain
     # note that the order of 'latrange' has been changed from earlier efforts, so it starts with lower latutide
-    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,variables,flist[0])
+    rainprop.subextent,rainprop.subdimensions,latrange,lonrange,indices=RainyDay.findsubbox(inarea,variables,flist[0])
     if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):  ## we should remove it
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
@@ -1033,8 +1033,20 @@ timestep=np.timedelta64(np.int(rainprop.timeres),'m')
 
 mnorm=np.sum(trimmask)
 
-xlen=rainprop.subdimensions[1]-maskwidth+1
-ylen=rainprop.subdimensions[0]-maskheight+1
+# xlen=rainprop.subdimensions[1]-maskwidth+1
+# ylen=rainprop.subdimensions[0]-maskheight+1
+xlen =rainprop.subdimensions[1]-maskwidth
+if (rainprop.subdimensions[1] - maskwidth ) % 2 != 0:
+    xloop = (rainprop.subdimensions[1] - maskwidth - 1) / 2
+else:
+    xloop = (rainprop.subdimensions[1] - maskwidth) / 2
+ylen =rainprop.subdimensions[0]-maskheight-2
+if (rainprop.subdimensions[0]-maskheight)% 2 != 0:
+    yloop = (rainprop.subdimensions[0]-maskheight -1) / 2
+else:
+    yloop = (rainprop.subdimensions[0]-maskheight) / 2
+halfheight=np.int32(np.ceil(maskheight/2))
+halfwidth=np.int32(np.ceil(maskwidth/2))
 
 if CreateCatalog:
     if ncfdom:
@@ -1130,19 +1142,21 @@ if CreateCatalog:
     #filerange=range(2759,2763)
     #print(parameterfile_json)
     proc_start = time.time()
-    for i in filerange: 
+    for i in filerange:
+        startpc = time.time()
         infile=flist[i]
-        # start = time.time()
-        inrain,intime=RainyDay.readnetcdf(infile,variables,inarea,dropvars=droplist)
-        # end = time.time()
-        # print("readnetcdf time:", end-start)
+        # startrd = time.time()
+        inrain,intime=RainyDay.readnetcdf(infile,variables,inarea, dropvars =droplist)
+        # inrain,intime=RainyDay.readnetcdf(infile,variables,indices)
+        # endrd = time.time(); print("readnetcdf time:", endrd-startrd)
+        
         #inrain=inrain[hourinclude,:]
         #intime=intime[hourinclude]
         # inrain[inrain<0.]=np.nan
         inrain = inrain.where(inrain >= 0, np.nan)
-        
+      
         print('Processing file '+str(i+1)+' out of '+str(len(flist))+' ('+"{0:0.0f}".format(100*(i+1)/len(flist))+'%): '+infile.split('/')[-1])
-        # start = time.time()
+        
         # THIS FIRST PART BUILDS THE STORM CATALOG
         for k in np.arange(0,len(intime)):     
             starttime=intime[k]-np.timedelta64(int(catduration*60.),'m')
@@ -1154,10 +1168,12 @@ if CreateCatalog:
             temparray=np.squeeze(np.nansum(rainarray[subtimeind,:],axis=1))
             
             if domain_type=='irregular':
-                # start = time.time()
-                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
-                # end = time.time()
-                # print(end - start)
+                temparray = temparray * domainmask
+                # startct = time.time()
+                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=catalogstride)
+                # rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=catalogstride)
+                # endct = time.time()
+                # print(endct - startct)
                 # print(rainmax)
             else:
                 rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
@@ -1182,8 +1198,8 @@ if CreateCatalog:
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)] 
-        # end = time.time()
-        # print('overall time:', end-start)
+        endpc = time.time()
+        print('overall time:', endpc-startpc)
     proc_end = time.time()
     print(f"catalog timer: {(proc_end-proc_start)/60.:0.2f} minutes")
 #%%
@@ -1204,6 +1220,7 @@ if CreateCatalog:
     os.mkdir(fullpath + '/StormCatalog')
     
     # This part saves each storm as single file #
+    # _,readtime = RainyDay.readnetcdf(flist[0],variables,indices)
     _,readtime = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
     print("Writing Storm Catalog!")
     for i in range(nstorms):
@@ -1230,6 +1247,7 @@ if CreateCatalog:
                     if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
                         stm_file = file
                         break
+                # stm_rain,stm_time = RainyDay.readnetcdf(stm_file,variables,indices)
                 stm_rain,stm_time = RainyDay.readnetcdf(stm_file,variables,inbounds=inarea,dropvars=droplist)
             cind = np.where(stm_time == current_datetime)[0][0]
             catrain[k,:] = stm_rain[cind,:]

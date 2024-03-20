@@ -33,7 +33,7 @@ import fiona
 import copy
 #import nctoolkit
 
-#from netCDF4 import Dataset, num2date, date2num
+from netCDF4 import Dataset
 import h5netcdf
 import rasterio
 from rasterio.transform import from_origin
@@ -193,84 +193,78 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 
 
 
-
 # @jit(nopython=True, fastmath =  True)  
-# def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
+# def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=1):
 #     rainsum[:]=0.
 #     halfheight=int32(np.ceil(maskheight/2))
 #     halfwidth=int32(np.ceil(maskwidth/2))
-#     for i in range(0,ylen*xlen):
+#     for i in range(0,(ylen)*(xlen),stride):
 #         y=i//xlen
 #         x=i-y*xlen
-#         #print x,y
-#         if np.any(np.equal(domainmask[y+halfheight,x:x+maskwidth],1.)) and np.any(np.equal(domainmask[y:y+maskheight,x+halfwidth],1.)):
-#             rainsum[y,x]=np.nansum(np.multiply(temparray[y:(y+maskheight),x:(x+maskwidth)],trimmask))
+#         # Ensure that the slice does not exceed the bounds of temparray
+            
+#         if np.any(np.equal(domainmask[y+halfheight, x:x+maskwidth], 1.)) and np.any(np.equal(domainmask[y:y+maskheight, x+halfwidth], 1.)):
+#             rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
+                
+            
 #         else:
-#             rainsum[y,x]=0.
+#             rainsum[y, x] = 0  
+                
 #     #wheremax=np.argmax(rainsum)
 #     rmax=np.nanmax(rainsum)
 #     wheremax=np.where(np.equal(rainsum,rmax))
 #     return rmax, wheremax[0][0], wheremax[1][0]
 
 @jit(nopython=True, fastmath =  True)  
-def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=1):
-    rainsum[:]=0.
-    halfheight=int32(np.ceil(maskheight/2))
-    halfwidth=int32(np.ceil(maskwidth/2))
-    for y in range(0, ylen, 2):
-        for x in range(0, xlen, 2):
-        # Ensure that the slice does not exceed the bounds of temparray
-            if x + 1 + maskwidth <= temparray.shape[1] and y + maskheight <= temparray.shape[0]:
-                if np.any(np.equal(domainmask[y+halfheight, x:x+maskwidth], 1.)) and np.any(np.equal(domainmask[y:y+maskheight, x+halfwidth], 1.)):
-                    rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
-                    rainsum[y, x+1] = np.nansum(np.multiply(temparray[y:(y+maskheight), x+1:(x+1+maskwidth)], trimmask))
-                else:
-                    rainsum[y, x] = 0
-                    rainsum[y, x+1] = 0
-            else:
-                # Handle the case where the slice would exceed the array bounds
-                # You might set the values to 0, NaN, or use a different handling logic
-                rainsum[y, x] = 0  # or np.NaN, or any other value or method appropriate for your context
+def catalogNumba_irregular(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=1):
+
+    for y in range(0, int32(yloop),stride):
+        for x in range(0, int32(xloop),2):
+            
+            rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
+            
+            rainsum[y, xlen-x-1] = np.nansum(np.multiply(temparray[y:(y+maskheight), xlen-x:(xlen-x+maskwidth)], trimmask))
+            rainsum[ylen-y-1, x] = np.nansum(np.multiply(temparray[ylen-y-1:(ylen-y-1+maskheight), x:(x+maskwidth)], trimmask))
+    
+              
+            rainsum[ylen-y-1, xlen-x-1] = np.nansum(np.multiply(temparray[ylen-y:(ylen-y+maskheight), xlen-x:(xlen-x+maskwidth)], trimmask))
                 
     #wheremax=np.argmax(rainsum)
     rmax=np.nanmax(rainsum)
     wheremax=np.where(np.equal(rainsum,rmax))
     return rmax, wheremax[0][0], wheremax[1][0]
 
-# @jit(nopython=True, fastmath =  True)  
-# def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
-#     rainsum[:]=0.
-#     halfheight=int32(np.ceil(maskheight/2))
-#     halfwidth=int32(np.ceil(maskwidth/2))
-#     for y in range(0, ylen, 2):
-#         for x in range(0, xlen):
-#             if np.any(np.equal(domainmask[y+halfheight, x:x+maskwidth], 1.)) and np.any(np.equal(domainmask[y:y+maskheight, x+halfwidth], 1.)):
-#                 rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
-#             else:
-#                 rainsum[y, x] = 0
-                
-       
+@jit(nopython=True,  fastmath =  True)
+def catalogNumba(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=1):
+    for y in range(0, int32(yloop)):
+        for x in range(0, int32(xloop),2):
             
+            rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
+            
+            rainsum[y, xlen-x-1] = np.nansum(np.multiply(temparray[y:(y+maskheight), xlen-x:(xlen-x+maskwidth)], trimmask))
+            rainsum[ylen-y-1, x] = np.nansum(np.multiply(temparray[ylen-y-1:(ylen-y-1+maskheight), x:(x+maskwidth)], trimmask))
+    
+              
+            rainsum[ylen-y-1, xlen-x-1] = np.nansum(np.multiply(temparray[ylen-y:(ylen-y+maskheight), xlen-x:(xlen-x+maskwidth)], trimmask))
+
+    #wheremax=np.argmax(rainsum)
+    rmax=np.nanmax(rainsum)
+    wheremax=np.where(np.equal(rainsum,rmax))
+    return rmax, wheremax[0][0], wheremax[1][0]
+
+# @jit(nopython=True)
+# def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=1):
+#     rainsum[:]=0.
+#     for i in range(0,(ylen)*(xlen),stride):
+#         y=i//xlen
+#         x=i-y*xlen
+#         #print x,y
+#         rainsum[y,x]=np.nansum(np.multiply(temparray[(y):(y+maskheight),(x):(x+maskwidth)],trimmask))
+
+#     #wheremax=np.argmax(rainsum)
 #     rmax=np.nanmax(rainsum)
 #     wheremax=np.where(np.equal(rainsum,rmax))
 #     return rmax, wheremax[0][0], wheremax[1][0]
-
-
-
-
-@jit(nopython=True)
-def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=1):
-    rainsum[:]=0.
-    for i in range(0,(ylen)*(xlen),stride):
-        y=i//xlen
-        x=i-y*xlen
-        #print x,y
-        rainsum[y,x]=np.nansum(np.multiply(temparray[(y):(y+maskheight),(x):(x+maskwidth)],trimmask))
-
-    #wheremax=np.argmax(rainsum)
-    rmax=np.nanmax(rainsum)
-    wheremax=np.where(np.equal(rainsum,rmax))
-    return rmax, wheremax[0][0], wheremax[1][0]
 
 
 @jit(nopython=True)
@@ -893,13 +887,21 @@ def findsubbox(inarea,variables,fname):
     rain_name,lat_name,lon_name = variables.values()
     if max(infile[lon_name].values) > 180: # convert from positive degrees west to negative degrees west
         infile[lon_name] = infile[lon_name] - 360 
+        # inarea[:2] += 360
+        # latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
     outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
                                               **{lon_name:slice(longmin,longmax)})
     outextent[2], outextent[3],outextent[0], outextent[1]=outrain[lat_name][0],outrain[lat_name][-1],\
                                 outrain[lon_name][0], outrain[lon_name][-1]       
     outdim[0], outdim[1] = len(outrain[lat_name]), len(outrain[lon_name])
+    lat = infile[lat_name]; lon = infile[lon_name] 
+    min_latidx = np.where((lat >= latmin) & (lat <= latmax))[0][0]
+    max_latidx = np.where((lat >= latmin) & (lat <= latmax))[0][-1]
+    min_lonidx = np.where((lon >= longmin) & (lon <= longmax))[0][0]
+    max_lonidx = np.where((lon >= longmin) & (lon <= longmax))[0][-1]
+    indices = np.array([min_latidx, max_latidx, min_lonidx, max_lonidx])
     infile.close()
-    return outextent, outdim, outrain[lat_name], outrain[lon_name]
+    return outextent, outdim, outrain[lat_name], outrain[lon_name], indices
     
     
     
@@ -1193,6 +1195,52 @@ def writemaximized(scenarioname,writename,outrain,writemax,write_ts,writex,write
 # READ RAINFALL FILE FROM NETCDF (ONLY FOR RAINYDAY NETCDF-FORMATTED DAILY FILES!
 #==============================================================================
 
+# def readnetcdf(rfile,variables,index = None,dropvars=False):
+#     """
+#     Used to trim the dataset with defined inbounds or transposition domain
+
+#     Parameters
+#     ----------
+#     rfile : Dataset file path ('.nc' file)
+#         This is the path to the dataset
+#     variables : TYPE
+#         DESCRIPTION.
+#     inbounds : TYPE, optional
+#         DESCRIPTION. The default is False.
+
+#     Returns
+#     -------
+#     TYPE
+#         DESCRIPTION.
+
+#     """
+#     rain_name,lat_name,lon_name = variables.values()
+#     if index is not None:
+#         infile = Dataset(rfile, mode='r')
+#         outrain = np.array(infile.variables[rain_name][:,index[0]:index[1]+1, index[3]:index[3]+1])
+#         outtime = np.array(infile.variables['time'][:], dtype='datetime64[m]')
+#         infile.close()
+#     else:    
+#         infile = xr.open_dataset(rfile, drop_variables=dropvars) if dropvars else xr.open_dataset(rfile)  # added DBW 07282023 to avoid reading in unnecessary variables
+        
+#         if max(infile[lon_name].values) > 180: # convert from positive degrees west to negative degrees west
+#             infile[lon_name] = infile[lon_name] - 360 
+#         # if np.any(inbounds!=False):
+#         #     latmin,latmax,longmin,longmax = inbounds[2],inbounds[3],inbounds[0],inbounds[1]
+#         #     outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
+#         #                                               **{lon_name:slice(longmin,longmax)})
+#         # else:
+#         outrain=infile[rain_name]
+#         outlatitude=outrain[lat_name]
+#         outlongitude=outrain[lat_name] 
+#         outtime=np.array(infile['time'], dtype='datetime64[m]')
+#         infile.close()
+#     if index is not None:
+#         return outrain,outtime
+        
+#     else:
+#         return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
+    
 def readnetcdf(rfile,variables,inbounds=False,dropvars=False,setup=False):
     """
     Used to trim the dataset with defined inbounds or transposition domain
@@ -1212,7 +1260,7 @@ def readnetcdf(rfile,variables,inbounds=False,dropvars=False,setup=False):
         DESCRIPTION.
 
     """
-    infile = xr.open_dataset(rfile, drop_variables=dropvars) if dropvars else xr.open_dataset(rfile)  # added DBW 07282023 to avoid reading in unnecessary variables
+    infile = xr.open_dataset(rfile, drop_variables=dropvars,chunks='auto') if dropvars else xr.open_dataset(rfile)  # added DBW 07282023 to avoid reading in unnecessary variables
     rain_name,lat_name,lon_name = variables.values()
     if max(infile[lon_name].values) > 180: # convert from positive degrees west to negative degrees west
         infile[lon_name] = infile[lon_name] - 360 
@@ -1222,16 +1270,14 @@ def readnetcdf(rfile,variables,inbounds=False,dropvars=False,setup=False):
                                                   **{lon_name:slice(longmin,longmax)})
     else:
         outrain=infile[rain_name]
-    outlatitude=outrain[lat_name]
-    outlongitude=outrain[lat_name] 
+        outlatitude=outrain[lat_name]
+        outlongitude=outrain[lat_name] 
     outtime=np.array(infile['time'],dtype='datetime64[m]')
     infile.close()
     if setup:
         return np.array(outrain),outtime,np.array(outlatitude),np.array(outlongitude)
     else:
         return outrain,outtime
-    
-
   
   
 #==============================================================================
@@ -1686,13 +1732,17 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
 
         # open the "entire" netcdf file once in order to get the list of all variables:        
         inds=xr.open_dataset(infile)
+        
 
         # this will only keep the variables that we need to read in. 
         droplist=find_unique_elements(inds.keys(),keepvars) # droplist will be passed to the 'drop_variables=' in xr.open_dataset within the storm catalog creation loop in RainyDay
         inds.close()
         
-        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables,dropvars=droplist,setup=True)
-
+        inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables,dropvars=droplist,setup = True)
+        # inrain,intime,inlatitude,inlongitude=readnetcdf(infile,variables,dropvars=droplist)
+        # if max(inlongitude) > 180:
+        #     inarea = inarea + 360
+    
     if len(inlatitude.shape)>1 or len(inlongitude.shape)>1:
         sys.exit("RainyDay isn't set up for netcdf files that aren't on a regular lat/lon grid!")
         #inlatitude=inlatitude[:,0]          # perhaps would be safer to have an error here...
@@ -1704,16 +1754,22 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
 
     unqtimes=np.unique(intime)
     if len(unqtimes)>1:
-        tdiff=unqtimes[1:]-unqtimes[0:-1]
-        tempres=np.min(unqtimes[1:]-unqtimes[0:-1])   # temporal resolution
-        if np.any(np.not_equal(tdiff,tempres)):
+        # tdiff=unqtimes[1:]-unqtimes[0:-1]
+        tdiff = np.diff(unqtimes).astype('timedelta64[m]')
+        # tempres=np.min(unqtimes[1:]-unqtimes[0:-1])   # temporal resolution
+        tempres = np.min(tdiff).astype('timedelta64[m]')
+        # if np.any(np.not_equal(tdiff,tempres)):
+        #     sys.exit("Uneven time steps. RainyDay can't handle that.")
+        if not np.all(tdiff == tempres):
             sys.exit("Uneven time steps. RainyDay can't handle that.")
+        
     else:
         #this is to catch daily data where you can't calculate a time resolution
         tempres=np.float32(1440.)
         tempres=tempres.astype('timedelta64[m]')      # temporal resolution in minutes-haven't checked to make sure this works right
     # print(type(tempres) , type(tdiff))
-    if len(intime)*np.float32(tempres)!=1440. and catalog==False:
+    tempres_minutes = tempres.astype('timedelta64[m]').astype(int)
+    if len(intime) * tempres_minutes != 1440. and catalog==False:
         sys.exit("RainyDay requires daily input files, but has detected something different.")
     tempres=np.int(np.float32(tempres))
 
