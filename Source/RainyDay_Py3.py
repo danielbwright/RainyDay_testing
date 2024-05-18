@@ -200,7 +200,7 @@ if CreateCatalog==False:
         yres=np.abs(latrange.diff(dim='latitude')).mean()
         xres=np.abs(lonrange.diff(dim='longitude')).mean()
         catarea=[lonrange[0],lonrange[-1]+xres,latrange[-1]-yres,latrange[0]]
-        if np.isclose(xres,yres)==False:
+        if np.isclose(xres,yres,atol=1e-5)==False:
             sys.exit('RainyDay currently only supports equal x and y resolutions!')
         else:
             res=np.min([yres,xres])
@@ -1143,7 +1143,7 @@ if CreateCatalog:
     #print(parameterfile_json)
     proc_start = time.time()
     for i in filerange:
-        startpc = time.time()
+        # startpc = time.time()
         infile=flist[i]
         # startrd = time.time()
         inrain,intime=RainyDay.readnetcdf(infile,variables,inarea, dropvars =droplist)
@@ -1176,7 +1176,7 @@ if CreateCatalog:
                 # print(endct - startct)
                 # print(rainmax)
             else:
-                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
+                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=catalogstride)
                 
             minind=np.argmin(catmax)
             tempmin=catmax[minind]
@@ -1198,8 +1198,8 @@ if CreateCatalog:
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)] 
-        endpc = time.time()
-        print('overall time:', endpc-startpc)
+        # endpc = time.time()
+        # print('overall time:', endpc-startpc)
     proc_end = time.time()
     print(f"catalog timer: {(proc_end-proc_start)/60.:0.2f} minutes")
 #%%
@@ -1254,7 +1254,7 @@ if CreateCatalog:
             current_datetime += rainprop.timeres 
             k += 1
         storm_time = np.datetime_as_string(start_time, unit='D').replace("-","")
-        storm_name = fullpath +'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
+        storm_name = fullpath +'/StormCatalog/' + catalogname+'_storm_'+str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         try:
             RainyDay.writecatalog(scenarioname,catrain,\
@@ -1276,7 +1276,7 @@ if CreateCatalog:
     end = time.time()   
     print(f"catalog timer: {(end-proc_start)/60.:0.2f} minutes")
 
-    stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc')
+    stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '_storm_'+'*' + '.nc')
     stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
 #%%
 #################################################################################

@@ -218,8 +218,8 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 @jit(nopython=True, fastmath =  True)  
 def catalogNumba_irregular(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=1):
 
-    for y in range(0, int32(yloop),stride):
-        for x in range(0, int32(xloop),2):
+    for y in range(0, int32(yloop)):
+        for x in range(0, int32(xloop),stride):
             
             rainsum[y, x] = np.nansum(np.multiply(temparray[y:(y+maskheight), x:(x+maskwidth)], trimmask))
             
@@ -1517,49 +1517,95 @@ def writedomain(domain,mainpath,latrange,lonrange,parameterfile):
 # =============================================================================
 def extract_storm_number(file_path, catalogname):
     """
-    
+    Extracts the storm number from the filename of a storm file, using the catalog name for precise matching.
 
     Parameters
     ----------
     file_path : string
-        File path for the storms .nc files
+        File path for the storms .nc files.
     catalogname : string
-        Name of the storm catalog given in JSON file
+        The specific prefix (catalog name) to match in the filename.
 
     Returns
     -------
     integer
-        returns the storm number from the path given in "file_path".
-
+        Returns the storm number from the path given in "file_path", or 0 if not found.
     """
     base_name = os.path.basename(file_path)
-    match = re.search(catalogname +r'(\d+)', base_name)
+    pattern = re.escape(catalogname)+'_storm' + r'_(\d+)_\d{8}\.nc$'
+    match = re.search(pattern, base_name)
     if match:
-        return np.int32(match.group(1))
-    return 0  
-
-def extract_date(file_path, pattern):
-    """
+        return int(match.group(1))
+    return 0
+# def extract_storm_number(file_path, catalogname):
+#     """
     
+
+#     Parameters
+#     ----------
+#     file_path : string
+#         File path for the storms .nc files
+#     catalogname : string
+#         Name of the storm catalog given in JSON file
+
+#     Returns
+#     -------
+#     integer
+#         returns the storm number from the path given in "file_path".
+
+#     """
+#     base_name = os.path.basename(file_path)
+#     match = re.search(catalogname +r'(\d+)', base_name)
+#     if match:
+#         return np.int32(match.group(1))
+#     return 0  
+
+def extract_date(file_path, catalogname):
+    """
+    Extracts the date from the filename of a storm file, using the catalog name for precise matching.
 
     Parameters
     ----------
     file_path : string
-        File path for the storm catalog file
-    pattern : string
-        catalogname gievn in the JSON file
+        File path for the storm .nc files.
+    catalogname : string
+        The specific prefix (catalog name) to match in the filename.
 
     Returns
     -------
     string
-        returns the date of the storm catalog in the YYYYMMDD format(string)
-
+        Returns the date of the storm in the YYYYMMDD format (string), or None if not found.
     """
     base_name = os.path.basename(file_path)
-    match = re.search(pattern + r'\d+_(\d{8})\.nc', base_name)
+    pattern = re.escape(catalogname) +'_storm'+ r'_\d+_(\d{8})\.nc$'
+    match = re.search(pattern, base_name)
     if match:
         return match.group(1)
     return None
+
+
+# def extract_date(file_path, pattern):
+#     """
+    
+
+#     Parameters
+#     ----------
+#     file_path : string
+#         File path for the storm catalog file
+#     pattern : string
+#         catalogname gievn in the JSON file
+
+#     Returns
+#     -------
+#     string
+#         returns the date of the storm catalog in the YYYYMMDD format(string)
+
+#     """
+#     base_name = os.path.basename(file_path)
+#     match = re.search(pattern + r'\d+_(\d{8})\.nc', base_name)
+#     if match:
+#         return match.group(1)
+#     return None
 # =============================================================================
 # added DBW 08152023: delete existing scenario files recursively before writing new ones
 # this was provided by ChatGPT
