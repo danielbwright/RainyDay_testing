@@ -199,7 +199,7 @@ if CreateCatalog==False:
         yres=np.abs(latrange.diff(dim='latitude')).mean()
         xres=np.abs(lonrange.diff(dim='longitude')).mean()
         catarea=[lonrange[0],lonrange[-1]+xres,latrange[-1]-yres,latrange[0]]
-        if np.isclose(xres,yres)==False:
+        if np.isclose(xres,yres,atol=1e-5)==False:
             sys.exit('RainyDay currently only supports equal x and y resolutions!')
         else:
             res=np.min([yres,xres])
@@ -828,7 +828,36 @@ if isinstance(catalogstride, int):
         print("You've decided to speed up the storm catalog identification by not examining every possibility. Good for you!")
         
 
+# Added 2/6/2024 by DBW
+# This reads in a daily-scale probability of probabilities that will be used when resampling storms
+try:
+    seasonfile=cardinfo["SEASONALSAMPLING"]
+    seasonalsampling=True
+    seasonaldata=np.genfromtxt(seasonfile, delimiter=',',skip_header=1)
+    seasonaldoy=np.array(seasonaldata[:,0],dtype='int16')
+    seasonaldate=np.zeros((len(seasonaldoy)),dtype='datetime64[D]')
+    for i in range(0,len(seasonaldate)):
+        seasonaldate[i]=RainyDay.day_of_year_to_datetime(1776,seasonaldoy[i])
+    if RainyDay.is_monotonic(seasonaldata[:,1]):
+        # if data is a cdf already
+        seasonalcdf=seasonaldata[:,1]/np.max(seasonaldata[:,1])
+    else:
+        # if data is a PMF
+        seasonalcdf=np.cumsum(seasonaldata[:,2])/np.max(seasonaldata[:,1])
+except Exception:
+    seasonalsampling=False    
 
+
+# added 3/1/2024 by DNW
+# this tries to accelerate the storm catalog identification:
+try:
+    catalogstride=cardinfo["CATALOGACCELERATOR"] 
+except Exception:
+    catalogstride=1
+if isinstance(catalogstride, int):
+    if catalogstride>1:
+        print("You've decided to speed up the storm catalog identification by not examining every possibility. Good for you!")
+        
 #==============================================================================
 # THIS BLOCK CONFIGURES SEVERAL THINGS
 #============================================================================== 
@@ -861,7 +890,7 @@ if CreateCatalog:
     #==============================================================================
     # 'subgrid' defines the transposition domain
     # note that the order of 'latrange' has been changed from earlier efforts, so it starts with lower latutide
-    rainprop.subextent,rainprop.subdimensions,latrange,lonrange=RainyDay.findsubbox(inarea,variables,flist[0])
+    rainprop.subextent,rainprop.subdimensions,latrange,lonrange,indices=RainyDay.findsubbox(inarea,variables,flist[0])
     if ncfdom and (np.any(domainmask.shape!=rainprop.subdimensions)):  ## we should remove it
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
@@ -1035,8 +1064,20 @@ timestep=np.timedelta64(np.int(rainprop.timeres),'m')
 
 mnorm=np.sum(trimmask)
 
-xlen=rainprop.subdimensions[1]-maskwidth+1
-ylen=rainprop.subdimensions[0]-maskheight+1
+# xlen=rainprop.subdimensions[1]-maskwidth+1
+# ylen=rainprop.subdimensions[0]-maskheight+1
+xlen =rainprop.subdimensions[1]-maskwidth
+if (rainprop.subdimensions[1] - maskwidth ) % 2 != 0:
+    xloop = (rainprop.subdimensions[1] - maskwidth - 1) / 2
+else:
+    xloop = (rainprop.subdimensions[1] - maskwidth) / 2
+ylen =rainprop.subdimensions[0]-maskheight-2
+if (rainprop.subdimensions[0]-maskheight)% 2 != 0:
+    yloop = (rainprop.subdimensions[0]-maskheight -1) / 2
+else:
+    yloop = (rainprop.subdimensions[0]-maskheight) / 2
+halfheight=np.int32(np.ceil(maskheight/2))
+halfwidth=np.int32(np.ceil(maskwidth/2))
 
 if CreateCatalog:
     if ncfdom:
@@ -1132,16 +1173,22 @@ if CreateCatalog:
     #sys.exit("set back!!!")
     #filerange=range(2759,2763)
     #print(parameterfile_json)
-    start = time.time()
-    for i in filerange: 
+    proc_start = time.time()
+    for i in filerange:
+        # startpc = time.time()
         infile=flist[i]
-        inrain,intime,_,_=RainyDay.readnetcdf(infile,variables,inarea,dropvars=droplist)
+        # startrd = time.time()
+        inrain,intime=RainyDay.readnetcdf(infile,variables,inarea, dropvars =droplist)
+        # inrain,intime=RainyDay.readnetcdf(infile,variables,indices)
+        # endrd = time.time(); print("readnetcdf time:", endrd-startrd)
+        
         #inrain=inrain[hourinclude,:]
         #intime=intime[hourinclude]
-        inrain[inrain<0.]=np.nan
-        
+        # inrain[inrain<0.]=np.nan
+        inrain = inrain.where(inrain >= 0, np.nan)
+      
         print('Processing file '+str(i+1)+' out of '+str(len(flist))+' ('+"{0:0.0f}".format(100*(i+1)/len(flist))+'%): '+infile.split('/')[-1])
-
+        
         # THIS FIRST PART BUILDS THE STORM CATALOG
         for k in np.arange(0,len(intime)):     
             starttime=intime[k]-np.timedelta64(int(catduration*60.),'m')
@@ -1153,9 +1200,21 @@ if CreateCatalog:
             temparray=np.squeeze(np.nansum(rainarray[subtimeind,:],axis=1))
             
             if domain_type=='irregular':
+<<<<<<< HEAD
                 rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=catalogstride)
             else:
                 rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=catalogstride)
+=======
+                temparray = temparray * domainmask
+                # startct = time.time()
+                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=catalogstride)
+                # rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=catalogstride)
+                # endct = time.time()
+                # print(endct - startct)
+                # print(rainmax)
+            else:
+                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,xloop,yloop,maskheight,maskwidth,rainsum,stride=catalogstride)
+>>>>>>> upstream/RainyDayRefctoring
                 
             minind=np.argmin(catmax)
             tempmin=catmax[minind]
@@ -1177,8 +1236,10 @@ if CreateCatalog:
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)] 
+        # endpc = time.time()
+        # print('overall time:', endpc-startpc)
     proc_end = time.time()
-    print(f"catalog timer: {(proc_end-start)/60.:0.2f} minutes")
+    print(f"catalog timer: {(proc_end-proc_start)/60.:0.2f} minutes")
 #%%
     if np.count_nonzero(catmax) < nstorms:
         zero_ind = np.where(catmax ==0)[0][0]
@@ -1197,7 +1258,8 @@ if CreateCatalog:
     os.mkdir(fullpath + '/StormCatalog')
     
     # This part saves each storm as single file #
-    _,readtime,_,_ = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
+    # _,readtime = RainyDay.readnetcdf(flist[0],variables,indices)
+    _,readtime = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
     print("Writing Storm Catalog!")
     for i in range(nstorms):
         start_time = cattime[i,0]
@@ -1223,13 +1285,14 @@ if CreateCatalog:
                     if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
                         stm_file = file
                         break
-                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,variables,inbounds=inarea,dropvars=droplist)
+                # stm_rain,stm_time = RainyDay.readnetcdf(stm_file,variables,indices)
+                stm_rain,stm_time = RainyDay.readnetcdf(stm_file,variables,inbounds=inarea,dropvars=droplist)
             cind = np.where(stm_time == current_datetime)[0][0]
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
             k += 1
         storm_time = np.datetime_as_string(start_time, unit='D').replace("-","")
-        storm_name = fullpath +'/StormCatalog/' + catalogname + str(i+1) +"_"+ storm_time+".nc"
+        storm_name = fullpath +'/StormCatalog/' + catalogname+'_storm_'+str(i+1) +"_"+ storm_time+".nc"
         print("Writing Storm "+ str(i+1) + " out of " + str(nstorms) )
         try:
             RainyDay.writecatalog(scenarioname,catrain,\
@@ -1249,9 +1312,9 @@ if CreateCatalog:
                                                   storm_name,catmask,parameterfile,domainmask,\
                                                      nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)
     end = time.time()   
-    print(f"catalog timer: {(end-start)/60.:0.2f} minutes")
+    print(f"catalog timer: {(end-proc_start)/60.:0.2f} minutes")
 
-    stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc')
+    stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '_storm_'+'*' + '.nc')
     stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
 #%%
 #################################################################################
@@ -1772,7 +1835,7 @@ if DoDiagnostics:
     ax=plt.axes(projection=proj)
     #ax.set_extent(outerextent)
     if areatype.lower()=="basin" and os.path.isfile(wsmaskshp):
-        ax.add_feature(wmap_feature,edgecolor="red", facecolor='none')
+        ax.add_feature(wmap_feature,edgecolor="black", facecolor='none')
     elif areatype.lower()=="box" or areatype.lower()=="point":
         ax.add_geometries([ring], facecolor='none',edgecolor='red',crs=ccrs.PlateCarree())
         
@@ -1880,6 +1943,11 @@ if FreqAnalysis:
     
     
     # DOES THIS PROPERLY HANDLE STORM EXCLUSIONS???  I think so...
+<<<<<<< HEAD
+=======
+    for i in range(0,np.nanmax(ncounts)):
+        whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
+>>>>>>> upstream/RainyDayRefctoring
     # added 2/6/2024 DBW to support seasonally-dependent sampling
     if seasonalsampling:
         _,_,_,_,_,_,_,_,_,cattime,_ = RainyDay.readcatalog(stormlist[0])
@@ -1907,11 +1975,18 @@ if FreqAnalysis:
             absolute_diff = np.abs(closest_date[:, np.newaxis] - cat_doy)
             closest_storm = np.argmin(absolute_diff, axis=1)
                  
+<<<<<<< HEAD
      
     else:
         for i in range(0,np.nanmax(ncounts)):
             whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
         
+=======
+        
+    else:
+        for i in range(0,np.nanmax(ncounts)):
+            whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug
+>>>>>>> upstream/RainyDayRefctoring
     
     # the next three lines were commented out when adding the "pointlist" option
     #whichrain=np.zeros((whichstorms.shape),dtype='float32')
