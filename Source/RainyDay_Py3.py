@@ -439,7 +439,7 @@ else:  ###### Ashar:  Dan I beleive we can remove this condition and add it to t
         inarea=deepcopy(catarea)
     else:
         try:
-            lim1,lim2,lim3,lim4 = cardinfo["AREA_EXTENT"].values()
+            lim1,lim2,lim3,lim4 = cardinfo["AREA_EXTENT"]
             inarea=np.array([lim3,lim4,lim1,lim2])
         except ImportError:
             sys.exit("need to specify 'LATITUDE_MIN', 'LATITUDE_MAX', 'LONGITUDE_MIN', 'LONGITUDE_MAX'")
@@ -866,7 +866,6 @@ if CreateCatalog:
         sys.exit("Something went terribly wrong :(")        # this shouldn't happen
 
 
-
 #==============================================================================
 # IF A STORM CATALOG ALREADY EXISTS, USE IT
 #==============================================================================  
@@ -1124,6 +1123,7 @@ if CreateCatalog:
     catx=np.zeros((nstorms),dtype='int32')
     caty=np.zeros((nstorms),dtype='int32')
     
+
 
     #==============================================================================
     # READ IN RAINFALL
@@ -1840,7 +1840,7 @@ if FreqAnalysis:
         nyears=len(includeyears)
         
         
-    # resampling counts options:
+        # resampling counts options:
     if samplingtype.lower()=='poisson':
         #lrate=len(catmax)/nyears*FrequencySens 
         lrate=len(catmax)/nyears        
@@ -1907,7 +1907,7 @@ if FreqAnalysis:
             absolute_diff = np.abs(closest_date[:, np.newaxis] - cat_doy)
             closest_storm = np.argmin(absolute_diff, axis=1)
                  
-        
+     
     else:
         for i in range(0,np.nanmax(ncounts)):
             whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
@@ -2698,7 +2698,7 @@ if FreqAnalysis:
                     name_scenariofile=fullpath+'/Realizations/Realization'+str(trealization[0]+1)+'/scenario_'+scenarioname+'_rlz'+str(trealization[0]+1)+'year'+str(tyear[0]+1)+'storm'+str(tstorm[0]+1)+'.nc'
                     #outrain=RainyDay.SSTspin_write_v2(catrain,np.squeeze(writex[:,rlz]),np.squeeze(writey[:,rlz]),np.squeeze(writestorm[:,rlz]),nanmask,maskheight,maskwidth,precat,cattime[:,-1],rainprop,spin=prependrain,flexspin=False,samptype=transpotype,cumkernel=cumkernel,rotation=rotation,domaintype=domain_type)
                     RainyDay.writescenariofile(catrain,raintime,outx,outy,name_scenariofile,tstorm[0],tyear[0],trealization[0],maskheight,maskwidth,subrangelat,subrangelon,scenarioname,writemask)
-    
+                    
     
     
     #testrain=np.nansum(np.multiply(catrain[:,21 : 21+maskheight, 29 : 29+maskwidth],trimmask),axis=(1,2))/mnorm 

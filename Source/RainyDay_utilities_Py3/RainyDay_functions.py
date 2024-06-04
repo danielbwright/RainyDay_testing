@@ -1632,8 +1632,8 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
         # configure things so that in the storm catalog creation loop, we only read in the necessary variables
         invars=copy.deepcopy(variables)
         # we don't want to drop these:
-        del invars['latname']   
-        del invars['longname']
+        #del invars['latname']      # should these be necessary???
+        #del invars['longname']     # should these be necessary???
         keepvars=list(invars.values())
 
         # open the "entire" netcdf file once in order to get the list of all variables:        
@@ -1658,6 +1658,7 @@ def rainprop_setup(infile,rainprop,variables,catalog=False):
     if len(unqtimes)>1:
         tdiff=unqtimes[1:]-unqtimes[0:-1]
         tempres=np.min(unqtimes[1:]-unqtimes[0:-1])   # temporal resolution
+
         if np.any(np.not_equal(tdiff,tempres)):
             sys.exit("Uneven time steps. RainyDay can't handle that.")
     else:
